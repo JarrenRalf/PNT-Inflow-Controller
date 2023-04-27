@@ -73,7 +73,7 @@ function onEdit(e)
 }
 
 /**
- * This function moves the selected items from the item search sheet to the sales order page.
+ * This function moves the selected items from the item search sheet to the purchase order page.
  * 
  * @author Jarren Ralf
  */
@@ -141,8 +141,8 @@ function copySelectedValues(sheet, isTransfer)
       case 'Sales Order':
         var range = sheet.getRange(2, 1);
         var orderCounter = Number(range.getValue()) + 1;
-        var items = itemValues.map(v => ['newSalesOrder_' + orderCounter, 'Richmond PNT', v[0], '', v[2]])
-        var colours = items.map(_ => ['white', 'white', 'white', 'white', 'white'])
+        var items = itemValues.map(v => ['newSalesOrder_' + orderCounter, 'Richmond PNT', v[0], '', '', '', v[2]])
+        var colours = items.map(_ => ['white', 'white', 'white', 'white', 'white', 'white', 'white'])
         range.setValue(orderCounter)
         break;
       case 'Stock Levels':
@@ -280,7 +280,7 @@ function downloadInflowPickList()
   const sheet = SpreadsheetApp.getActive().getSheetByName('Sales Order');
   const data = sheet.getSheetValues(3, 1, sheet.getLastRow() - 2, sheet.getLastColumn() - 1)
 
-  for (var row = 0, csv = "OrderNumber,Customer,ItemName,ItemQuantity\r\n"; row < data.length; row++)
+  for (var row = 0, csv = "OrderNumber,Customer,ItemName,ItemQuantity,OrderRemarks,ContactName\r\n"; row < data.length; row++)
   {
     for (var col = 0; col < data[row].length; col++)
     {
