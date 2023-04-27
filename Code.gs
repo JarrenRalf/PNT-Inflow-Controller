@@ -1,30 +1,6 @@
 /* Maybe create an onOpen function that prompts the user to import the inFlow stock levels so that the most update values can be used!
  */
 
-const inflow_conversions = {
-  '10010021FT - WEB: 210/60x3-1/4"X100md X200FM Body #21 -  - Twisted Tarred Nylon - FOOT': 1200,
-  '10100027 - WEB: 210/27x1-1/8"x200MDx105FMx235# -  - Twisted Tarred Nylon - POUND': 235, 
-  '101021027118 - WEB: 210/27x1-1/8"x100MDx 105FMS -  - Twisted Tarred Nylon - POUND': 226, 
-  '10110096 - WEB: 210/96 (6x16) x3"x100MDx50FMx230lbs -  - Cargo/Barrier - POUND': 230, 
-  '10120495FOOT - WEB: 210/224x3"x100MDxfoot ) #14x16 -  - Braided Tarred Nylon - FOOT': 150, 
-  '10210096 - WEB: 210/96x3-5/8"x25MDx100 FMS Braid k -  - Braided Tarred Nylon - POUND': 96,
-  '10500027FT - WEB: 210/27x 2"x400MDx foot GOLF -  - Golf - FOOT': 600, 
-  '10500030 - WEB: 3MM Braided  Knotted PE X4"X 100MD -  - Golf - POUND': 285,
-  '10500128 - WEB: 210/128x2"x50MDx100FMx250LBS - North Pacific - Hockey/Lacrosse - POUND': 250,
-  '10500144 - Black Cod Web 210/144 x 3in x 28md x 200 -  - Web - Miscellaneous - POUND': 375, 
-  '10500360 - WEB: #36 x 3"x34MD BROWN HD ACRYLIC -  - Golf - POUND': 300, 
-  '10501001FT - WEB: PNT BLACKBIRD 15mm Sq x 2m deep -  - Golf - FOOT': 328.084, 
-  '10503000 - WEB: #30 x 2"x50MD BLACK HD ACRYLIC COAT -  - Golf - POUND': 300, 
-  "10503600 - VEXAR L36 WEB for CRAB CAGE  (100'/ROLL) -  - Golf - FOOT": 100,
-  '10710010FT - WEB: 210/10x1/2"x800MDx100FMx235# RACHL -  - Raschel Knotless - FOOT': 600, 
-  '10782109038 - Rachel Black We 210/9 X 3/8" X465MDX 900 -  - Raschel Knotless - POUND': 235,
-  '24400000 - BLACK RUBBER MATTING RIBBED    3 \' WIDE - ERIKS - Mats & Tables - FOOT': 225,
-  '26014025 - GRADE 43 HIGH TEST GALV CHAIN 1/4" -  - Chain - FOOT': 500,
-  '21000001 - CHAIN: PROOF COIL 1/4" Hot Dipped Galv - VANGUARD - Chain - FOOT': 500,
-  '21000003 - CHAIN: PROOF COIL 3/8" Hot Dipped Galv - VANGUARD - Chain - FOOT': 400, 
-  '21000004 - CHAIN: PROOF COIL 1/2" Hot Dipped Galv - VANGUARD - Chain - FOOT': 200
-}
-
 /**
  * This function is run when an html web app is launched. In our case, when the modal dialog box is produced at 
  * the point a user has clicked the Download inFlow Pick List button inorder to produce the csv file.
@@ -157,11 +133,8 @@ function copySelectedValues(sheet, isTransfer)
   
   if (row > numHeaders && lastRow <= finalDataRow) // If the user has not selected an item, alert them with an error message
   {   
-    const col = (activeSheet.getSheetName() === 'DOCK') ? 1 : 2;
-    const numCols = 4;
-    
     // Concatenate all of the item values as a 2-D array
-    const itemValues = [].concat.apply([], firstRows.map((_, r) => activeSheet.getSheetValues(firstRows[r], col, lastRows[r] - firstRows[r] + 1, numCols))); 
+    const itemValues = [].concat.apply([], firstRows.map((_, r) => activeSheet.getSheetValues(firstRows[r], 2, lastRows[r] - firstRows[r] + 1, 4))); 
 
     switch (sheet.getSheetName())
     {
@@ -618,44 +591,328 @@ function search(e, spreadsheet, sheet)
   {
     if (row === 1 && col === 2) // Check if the search box is edited
     {
-      spreadsheet.toast('Searching...')
       const startTime = new Date().getTime();
       const searchResultsDisplayRange = sheet.getRange(1, 1); // The range that will display the number of items found by the search
       const functionRunTimeRange = sheet.getRange(2, 1, 2);   // The range that will display the runtimes for the search and formatting
-      const searchWords = sheet.getRange(1, 2, 1, 2).clearFormat()                                      // Clear the formatting of the range of the search box
+      const itemSearchFullRange = sheet.getRange(4, 1, sheet.getMaxRows() - 2, 8); // The entire range of the Item Search page
+      const searchesOrNot = sheet.getRange(1, 2, 1, 2).clearFormat()                                      // Clear the formatting of the range of the search box
         .setBorder(true, true, true, true, null, null, 'black', SpreadsheetApp.BorderStyle.SOLID_THICK) // Set the border
         .setFontFamily("Arial").setFontColor("black").setFontWeight("bold").setFontSize(14)             // Set the various font parameters
         .setHorizontalAlignment("center").setVerticalAlignment("middle")                                // Set the alignment
         .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP)                                              // Set the wrap strategy
         .merge().trimWhitespace()                                                                       // Merge and trim the whitespaces at the end of the string
-        .getValue().toString().toLowerCase().split(/\s+/);                                              // Split the search string at whitespacecharacters into an array of search words
+        .getValue().toString().toLowerCase().split(' not ')                                             // Split the search string at the word 'not'
 
-      const itemSearchFullRange = sheet.getRange(4, 1, sheet.getMaxRows() - 2, 8); // The entire range of the Item Search page
+      const searches = searchesOrNot[0].split(' or ').map(words => words.split(/\s+/)) // Split the search values up by the word 'or' and split the results of that split by whitespace
 
-      if (isNotBlank(searchWords[0])) // If the value in the search box is NOT blank, then compute the search
+      if (isNotBlank(searches[0][0])) // If the value in the search box is NOT blank, then compute the search
       {
-        const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
-        const data = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 4);
-        const numSearchWords = searchWords.length - 1; // The number of search words - 1
-        const output = [];
-        var UoM;
+        spreadsheet.toast('Searching...')
+        const numSearches = searches.length; // The number searches
+        var output = [];
+        var numSearchWords, UoM;
 
-        for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
+        if (searchesOrNot.length === 1) // The word 'not' WASN'T found in the string
         {
-          for (var j = 0; j <= numSearchWords; j++) // Loop through each word in the User's query
-          {
-            if (data[i][0].toString().toLowerCase().includes(searchWords[j])) // Does the i-th item description contain the j-th search word
-            {
-              if (j === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
-              {
-                UoM = data[i][0].toString().split(' - ')
-                UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+          const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+          const data = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 4);
 
-                output.push([UoM, ...data[i]]);
+          if (searches[0][0].substring(0, 3) === 'loc')
+          {
+            for (var i = 0; i < data.length; i++) // Loop through all of the locations from the search data
+            {
+              loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
+              {
+                numSearchWords = searches[j].length - 1;
+
+                for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
+                {
+                  if (searches[j][k].substring(0, 3) === 'loc')
+                    continue;
+
+                  if (searches[j][k][0] === '_' && data[i][1].toString().toLowerCase()[data[i][1].toString().length - 1] === searches[j][k][searches[j][k].length - 1])
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      UoM = data[i][0].toString().split(' - ')
+                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                      output.push([UoM, ...data[i]]);
+                      break loop;
+                    }
+                  }
+                  else if (searches[j][k][searches[j][k].length - 1] === '_' && data[i][1].toString().toLowerCase()[0] === searches[j][k][0])
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      UoM = data[i][0].toString().split(' - ')
+                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                      output.push([UoM, ...data[i]]);
+                      break loop;
+                    }
+                  }
+                  else if (data[i][1].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      UoM = data[i][0].toString().split(' - ')
+                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                      output.push([UoM, ...data[i]]);
+                      break loop;
+                    }
+                  }
+                  else
+                    break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item
+                }
               }
             }
+
+            output = output.sort(sortByLocations)
+          }
+          else if (searches[0][0].substring(0, 3) === 'ser')
+          {
+            if (numSearches === 1 && searches[0].length == 1)
+              output.push(...data.filter(serial => isNotBlank(serial[3])).map(values => {
+                UoM = values[0].toString().split(' - ');
+                UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                return [UoM, ...values]
+              }))
             else
-              break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item
+            {
+              for (var i = 0; i < data.length; i++) // Loop through all of the serial numbers from the search data
+              {
+                loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
+                {
+                  numSearchWords = searches[j].length - 1;
+
+                  for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
+                  {
+                    if (searches[j][k].substring(0, 3) === 'ser')
+                      continue;
+
+                    if (data[i][3].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                    {
+                      if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                      {
+                        UoM = data[i][0].toString().split(' - ')
+                        UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                        output.push([UoM, ...data[i]]);
+                        break loop;
+                      }
+                    }
+                    else
+                      break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item
+                  }
+                }
+              }
+            }
+
+            output = output.sort(sortBySerial)
+          }
+          else
+          {
+            for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
+            {
+              loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
+              {
+                numSearchWords = searches[j].length - 1;
+
+                for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
+                {
+                  if (data[i][0].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      UoM = data[i][0].toString().split(' - ')
+                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                      output.push([UoM, ...data[i]]);
+                      break loop;
+                    }
+                  }
+                  else
+                    break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item
+                }
+              }
+            }
+          }
+        }
+        else // The word 'not' was found in the search string
+        {
+          const dontIncludeTheseWords = searchesOrNot[1].split(/\s+/);
+          const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+          const data = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 4);
+
+          if (searches[0][0].substring(0, 3) === 'loc')
+          {
+            for (var i = 0; i < data.length; i++) // Loop through all of the locations from the search data
+            {
+              loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
+              {
+                numSearchWords = searches[j].length - 1;
+
+                for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
+                {
+                  if (searches[j][k].substring(0, 3) === 'loc')
+                    continue;
+
+                  if (searches[j][k][0] === '_' && data[i][1].toString().toLowerCase()[data[i][1].toString().length - 1] === searches[j][k][searches[j][k].length - 1])
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      for (var l = 0; l < dontIncludeTheseWords.length; l++)
+                      {
+                        if (!data[i][1].toString().toLowerCase().includes(dontIncludeTheseWords[l]))
+                        {
+                          if (l === dontIncludeTheseWords.length - 1)
+                          {
+                            UoM = data[i][0].toString().split(' - ')
+                            UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                            output.push([UoM, ...data[i]]);
+                            break loop;
+                          }
+                        }
+                        else
+                          break;
+                      }
+                    }
+                  }
+                  else if (searches[j][k][searches[j][k].length - 1] === '_' && data[i][1].toString().toLowerCase()[0] === searches[j][k][0])
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      for (var l = 0; l < dontIncludeTheseWords.length; l++)
+                      {
+                        if (!data[i][1].toString().toLowerCase().includes(dontIncludeTheseWords[l]))
+                        {
+                          if (l === dontIncludeTheseWords.length - 1)
+                          {
+                            UoM = data[i][0].toString().split(' - ')
+                            UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                            output.push([UoM, ...data[i]]);
+                            break loop;
+                          }
+                        }
+                        else
+                          break;
+                      }
+                    }
+                  }
+                  else if (data[i][1].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      for (var l = 0; l < dontIncludeTheseWords.length; l++)
+                      {
+                        if (!data[i][1].toString().toLowerCase().includes(dontIncludeTheseWords[l]))
+                        {
+                          if (l === dontIncludeTheseWords.length - 1)
+                          {
+                            UoM = data[i][0].toString().split(' - ')
+                            UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                            output.push([UoM, ...data[i]]);
+                            break loop;
+                          }
+                        }
+                        else
+                          break;
+                      }
+                    }
+                  }
+                  else
+                    break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item 
+                }
+              }
+            }
+
+            output = output.sort(sortByLocations)
+          }
+          else if (searches[0][0].substring(0, 3) === 'ser')
+          {
+            for (var i = 0; i < data.length; i++) // Loop through all of the locations from the search data
+            {
+              loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
+              {
+                numSearchWords = searches[j].length - 1;
+
+                for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
+                {
+                  if (searches[j][k].substring(0, 3) === 'ser')
+                    continue;
+
+                  if (data[i][3].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      for (var l = 0; l < dontIncludeTheseWords.length; l++)
+                      {
+                        if (!data[i][3].toString().toLowerCase().includes(dontIncludeTheseWords[l]))
+                        {
+                          if (l === dontIncludeTheseWords.length - 1)
+                          {
+                            UoM = data[i][0].toString().split(' - ')
+                            UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                            output.push([UoM, ...data[i]]);
+                            break loop;
+                          }
+                        }
+                        else
+                          break;
+                      }
+                    }
+                  }
+                  else
+                    break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item 
+                }
+              }
+            }
+
+            output = output.sort(sortBySerial)
+          }
+          else
+          {
+            for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
+            {
+              loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
+              {
+                numSearchWords = searches[j].length - 1;
+
+                for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
+                {
+                  if (data[i][0].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                  {
+                    if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
+                    {
+                      for (var l = 0; l < dontIncludeTheseWords.length; l++)
+                      {
+                        if (!data[i][0].toString().toLowerCase().includes(dontIncludeTheseWords[l]))
+                        {
+                          if (l === dontIncludeTheseWords.length - 1)
+                          {
+                            UoM = data[i][0].toString().split(' - ')
+                            UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                            output.push([UoM, ...data[i]]);
+                            break loop;
+                          }
+                        }
+                        else
+                          break;
+                      }
+                    }
+                  }
+                  else
+                    break; // One of the words in the User's query was NOT contained in the ith item description, therefore move on to the next item 
+                }
+              }
+            }
           }
         }
 
@@ -705,6 +962,56 @@ function sortByCustomers(a, b)
 }
 
 /**
+* Sorts data by the locations while ignoring capitals and pushing blanks to the bottom of the list.
+*
+* @param  {String[]} a : The current array value to compare
+* @param  {String[]} b : The next array value to compare
+* @return {String[][]} The output data.
+* @author Jarren Ralf
+*/
+function sortByLocations(a, b)
+{
+  return (a[2].toLowerCase() === b[2].toLowerCase()) ? 0 : (a[2] === '') ? 1 : (b[2] === '') ? -1 : (a[2].toLowerCase() < b[2].toLowerCase()) ? -1 : 1;
+}
+
+/**
+* Sorts data by the serial number based on the PNT conentions for bales of net. The first criteria is to sort numerically by PO number, then sort numerically again by BALE numer.
+*
+* @param  {String[]} a : The current array value to compare
+* @param  {String[]} b : The next array value to compare
+* @return {String[][]} The output data.
+* @author Jarren Ralf
+*/
+function sortBySerial(a, b)
+{
+  var baleNum1 = a[4].toLowerCase().split(' bale');
+  var baleNum2 = b[4].toLowerCase().split(' bale');
+  var poNum1 = baleNum1[0].split('po')[1];
+  var poNum2 = baleNum2[0].split('po')[1];
+
+  // If PO number is not present in the serial, push those items to the to of the list
+  if (poNum2 === null || poNum2 === undefined) 
+    return 1;
+  else if (poNum1 === null || poNum1 === undefined)
+    return -1;
+  else 
+  {
+    if (Number(poNum1.match(/\d+/g)) == Number(poNum2.match(/\d+/g))) // PO numbers match numerically
+    {
+      // If BALE number is not present in the serial, push those items to the top of the list
+      if (baleNum1[1]  === undefined)
+        return 1;
+      else if (baleNum2[1]  === undefined)
+        return -1;
+      else
+        return Number(baleNum1[1].match(/\d+/g)) - Number(baleNum2[1].match(/\d+/g)); // For matching PO numbers, sort numerically by BALE number
+    }
+    else
+      return Number(poNum1.match(/\d+/g)) - Number(poNum2.match(/\d+/g)) // Sort the PO numbers numerically
+  }
+}
+
+/**
  * This function moves the selected items from the item search sheet to the stock levels page in preparation for Stock Adjustments.
  * 
  * @author Jarren Ralf
@@ -715,31 +1022,11 @@ function stockAdjustment()
 }
 
 /**
- * This function moves the selected items from the DOCK sheet to the stock levels page in preparation for Stock Adjustments.
- * 
- * @author Jarren Ralf
- */
-function stockAdjustment_FromDock()
-{
-  copySelectedValues(SpreadsheetApp.getActive().getSheetByName('Stock Levels'), false)
-}
-
-/**
  * This function moves the selected items from the item search sheet to the stock levels page in preparation for Stock Transfers.
  * 
  * @author Jarren Ralf
  */
 function stockTransfer()
-{
-  copySelectedValues(SpreadsheetApp.getActive().getSheetByName('Stock Levels'), true)
-}
-
-/**
- * This function moves the selected items from the DOCK sheet to the stock levels page in preparation for Stock Transfers.
- * 
- * @author Jarren Ralf
- */
-function stockTransfer_FromDock()
 {
   copySelectedValues(SpreadsheetApp.getActive().getSheetByName('Stock Levels'), true)
 }
@@ -802,23 +1089,6 @@ function updateInFlowVendorList(values, spreadsheet)
 function updateInFlowCustomerList(values, spreadsheet)
 {
   updateInFlowList_(values, spreadsheet, 'Customers', 2)
-}
-
-/**
- * This function identifies the items in the inFlow database that are in location DOCK and puts then on the DOCK sheet.
- * 
- * @author Jarren Ralf
- */
-function updateItemsOnDock()
-{
-  const spreadsheet = SpreadsheetApp.getActive();
-  const inventorySheet = spreadsheet.getSheetByName('Inventory')
-  const sheet = spreadsheet.getSheetByName('DOCK')
-
-  const itemsOnDock = inventorySheet.getSheetValues(4, 1, inventorySheet.getLastRow() - 3, 4).filter(location => location[1] === 'DOCK')
-
-  if (itemsOnDock.length !== 0)
-    sheet.getRange(3, 1, sheet.getLastRow() - 2, 3).clearContent().offset(0, 0, itemsOnDock.length, 4).setValues(itemsOnDock)
 }
 
 /**
