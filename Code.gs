@@ -3,7 +3,7 @@
 
 /**
  * This function is run when an html web app is launched. In our case, when the modal dialog box is produced at 
- * the point a user has clicked the Download inFlow Pick List button inorder to produce the csv file.
+ * the point a user has downloaded inFlow Barcodes, Product Details, Purchase Order, Sales Order or Stock Levels inorder to produce the csv file.
  * 
  * @param {Event} e : The event object 
  * @return Returns the Html Output for the web app.
@@ -16,10 +16,12 @@ function doGet(e)
 
     if (inFlowImportType === 'Barcodes')
       return downloadInflowBarcodes()
+    else if (inFlowImportType === 'ProductDetails')
+      return downloadInflowProductDetails()
     else if (inFlowImportType === 'PurchaseOrder')
       return downloadInflowPurchaseOrder()
     else if (inFlowImportType === 'SalesOrder')
-      return downloadInflowPickList()
+      return downloadInflowSalesOrder()
     else if (inFlowImportType === 'StockLevels')
       return downloadInflowStockLevels()
   }
@@ -149,13 +151,13 @@ function copySelectedValues(sheet, isTransfer)
         if (isTransfer)
         {
           // Duplicate each item such that the transfered from location is zero and the destination location is blank
-          var items = itemValues.flatMap(v => [[v[0], v[1], 0, v[3], 'T'], [v[0], '', v[2], v[3], 'T']]) 
-          var colours = items.map((_, i) => (i % 2 === 0) ? ['#ea9999', '#ea9999', '#ea9999', '#ea9999', '#ea9999'] : ['#ea9999', '#e06666', '#ea9999', '#ea9999', '#ea9999'])
+          var items = itemValues.flatMap(v => [[v[0], v[1], 0, v[3], v[2], 'T'], [v[0], '', v[2], v[3], '', 'T']]) 
+          var colours = items.map((_, i) => (i % 2 === 0) ? ['#ea9999', '#ea9999', '#ea9999', '#ea9999', '#d9d9d9', '#d9d9d9'] : ['#ea9999', '#e06666', '#ea9999', '#ea9999', '#d9d9d9', '#d9d9d9'])
         }
         else // Stock Adjustment
         {
-          var items = itemValues.map(v => [v[0], v[1], v[2], v[3], 'A'])
-          var colours = items.map(_ => ['#f9cb9c', '#f9cb9c', '#f6b26b', '#f9cb9c', '#f9cb9c'])
+          var items = itemValues.map(v => [v[0], v[1], '', v[3], v[2], 'A'])
+          var colours = items.map(_ => ['#f9cb9c', '#f9cb9c', '#f6b26b', '#f9cb9c', '#d9d9d9', '#d9d9d9'])
         }
         break;
       case 'Purchase Order':
@@ -199,6 +201,17 @@ function downloadButton(importType)
 function downloadButton_Barcodes()
 {
   downloadButton('Barcodes')
+}
+
+/**
+ * This function calls another function that will launch a modal dialog box which allows the user to click a download button, which will lead to 
+ * a csv file of an inFlow Purchase Order to be downloaded, then imported into the inFlow inventory system.
+ * 
+ * @author Jarren Ralf
+ */
+function downloadButton_ProductDetails()
+{
+  downloadButton('ProductDetails')
 }
 
 /**
@@ -270,17 +283,33 @@ function downloadInflowBarcodes()
 }
 
 /**
- * This function takes the array of data on the inFlowPick page and it creates a csv file that can be downloaded from the Browser.
+ * This function takes three arguments that will be used to create a csv file that can be downloaded from the Browser.
  * 
+ * @param {String} sheetName  : The name of the sheet that the data is coming from
+ * @param {String} csvHeaders : The header names of the csv file
+ * @param {String} fileName   : The name of the csv file that will be produced
+ * @param {Number} excludeCol : The number of columns at the end of the data that provide information to the user, but do not need to be imported into inFlow
  * @return Returns the csv text file that file be downloaded by the user.
  * @author Jarren Ralf
  */
-function downloadInflowPickList()
+function downloadInflow(sheetName, csvHeaders, fileName, excludeCol)
 {
-  const sheet = SpreadsheetApp.getActive().getSheetByName('Sales Order');
-  const data = sheet.getSheetValues(3, 1, sheet.getLastRow() - 2, sheet.getLastColumn() - 1)
+  const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+  var data = sheet.getSheetValues(3, 1, sheet.getLastRow() - 2, sheet.getLastColumn() - excludeCol)
 
-  for (var row = 0, csv = "OrderNumber,Customer,ItemName,ItemQuantity,OrderRemarks,ContactName\r\n"; row < data.length; row++)
+  if (sheetName === 'Product Details')
+  {
+    const name = data[0].indexOf('Name')
+    const description = data[0].indexOf('Description')
+    data = data.filter(header => !header.some(element => element.toString().includes('\n'))).map(header => {
+      header[name] = "\"" + header[name] + "\"";
+      header[description] = "\"" + header[description] + "\"";
+
+      return header;
+    })
+  }
+
+  for (var row = 0, csv = csvHeaders; row < data.length; row++)
   {
     for (var col = 0; col < data[row].length; col++)
     {
@@ -291,70 +320,71 @@ function downloadInflowPickList()
     csv += (row < data.length - 1) ? data[row].join(",") + "\r\n" : data[row];
   }
 
-  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.CSV).downloadAsFile('inFlow_SalesOrder.csv');
+  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.CSV).downloadAsFile(fileName);
 }
 
 /**
- * This function takes the array of data on the inFlowPick page and it creates a csv file that can be downloaded from the Browser.
+ * This function takes the array of data on the Purchase Order page and it creates a csv file that can be downloaded from the Browser.
+ * 
+ * @return Returns the csv text file that file be downloaded by the user.
+ * @author Jarren Ralf
+ */
+function downloadInflowProductDetails()
+{
+  const sheetName = 'Product Details';
+  const csvHeaders = "Name,Category,ItemType,Description,BarCode,ReorderPoint,ReorderQuantity,Remarks,NOTES,Barcode,IsActive,PicturePath\r\n";
+  const fileName = 'inFlow_ProductDetails.csv';
+  const numColsToExclude = 0;
+  
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude)
+}
+
+/**
+ * This function takes the array of data on the Purchase Order page and it creates a csv file that can be downloaded from the Browser.
  * 
  * @return Returns the csv text file that file be downloaded by the user.
  * @author Jarren Ralf
  */
 function downloadInflowPurchaseOrder()
 {
-  const spreadsheet = SpreadsheetApp.getActive();
-  const sheet = spreadsheet.getSheetByName('Purchase Order');
-  const data = sheet.getSheetValues(3, 1, sheet.getLastRow() - 2, sheet.getLastColumn())
-
-  for (var row = 0, csv = "OrderNumber,Vendor,ItemName,ItemQuantity,OrderRemarks,AmountPaid,ItemUnitPrice,ItemSubtotal\r\n"; row < data.length; row++)
-  {
-    for (var col = 0; col < data[row].length; col++)
-    {
-      if (data[row][col].toString().indexOf(",") != - 1)
-        data[row][col] = "\"" + data[row][col] + "\"";
-    }
-
-    csv += (row < data.length - 1) ? data[row].join(",") + "\r\n" : data[row];
-  }
-
-  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.CSV).downloadAsFile('inFlow_PurchaseOrder.csv');
+  const sheetName = 'Purchase Order';
+  const csvHeaders = "OrderNumber,Vendor,ItemName,ItemQuantity,OrderRemarks,AmountPaid,ItemUnitPrice,ItemSubtotal\r\n";
+  const fileName = 'inFlow_PurchaseOrder.csv';
+  const numColsToExclude = 0;
+  
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude)
 }
 
 /**
- * This function takes the array of data on the Manual Counts page and it creates a csv file that can be downloaded from the Browser.
+ * This function takes the array of data on the Sales Order page and it creates a csv file that can be downloaded from the Browser.
+ * 
+ * @return Returns the csv text file that file be downloaded by the user.
+ * @author Jarren Ralf
+ */
+function downloadInflowSalesOrder()
+{
+  const sheetName = 'Sales Order';
+  const csvHeaders = "OrderNumber,Customer,ItemName,ItemQuantity,OrderRemarks,ContactName\r\n";
+  const fileName = 'inFlow_SalesOrder.csv';
+  const numColsToExclude = 1; // Columns at the end of the data that provide information to the user, but does not need to be imported into inFlow
+  
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude)
+}
+
+/**
+ * This function takes the array of data on the Stock Levels page and it creates a csv file that can be downloaded from the Browser.
  * 
  * @return Returns the csv text file that file be downloaded by the user.
  * @author Jarren Ralf
  */
 function downloadInflowStockLevels()
 {
-  const sheet = SpreadsheetApp.getActive().getSheetByName('Manual Counts');
-  const data = [];
-  var loc, qty, i;
-
-  sheet.getSheetValues(4, 1, sheet.getLastRow() - 3, sheet.getLastColumn()).map(item => {
-    loc = item[5].split('\n')
-    qty = item[6].split('\n')
-
-    if (loc.length === qty.length) // Make sure there is a location for every quantity and vice versa
-      for (i = 0; i < loc.length; i++) // Loop through the number of inflow locations
-        if (isNotBlank(loc[i]) && isNotBlank(qty)) // Do not add the data to the csv file if either the location or the quantity is blank
-          data.push([item[0], loc[i], qty[i]])
-
-  })
-
-  for (var row = 0, csv = "Item,Location,Quantity\r\n"; row < data.length; row++)
-  {
-    for (var col = 0; col < data[row].length; col++)
-    {
-      if (data[row][col].toString().indexOf(",") != - 1)
-        data[row][col] = "\"" + data[row][col] + "\"";
-    }
-
-    csv += (row < data.length - 1) ? data[row].join(",") + "\r\n" : data[row];
-  }
-
-  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.CSV).downloadAsFile('inFlow_StockLevels.csv');
+  const sheetName = 'Stock Levels';
+  const csvHeaders = "Item,Location,Quantity,Serial\r\n";
+  const fileName = 'inFlow_StockLevels.csv';
+  const numColsToExclude = 2; // Columns at the end of the data that provide information to the user, but does not need to be imported into inFlow
+  
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude)
 }
 
 /**
@@ -554,12 +584,14 @@ function processImportedData(e)
           importAdagioPurchaseOrder(values, spreadsheet);
         else if (values[0].includes('Cust #'))
           importAdagioSalesOrder(values, spreadsheet); // Needs to be written
-        else if (values[0].includes('PreferredCarrier'))
-          updateInFlowVendorList(values, spreadsheet);
-        else if (values[0].includes('DefaultPricingScheme'))
-          updateInFlowCustomerList(values, spreadsheet);
         else if (values[0].includes('Sublocation')) 
           importStockLevels(values, spreadsheet);
+        else if (values[0].includes('DefaultPricingScheme'))
+          updateInFlowCustomerList(values, spreadsheet);
+        else if (values[0].includes('ReorderQuantity')) 
+          updateInflowProductDetails(values, spreadsheet);
+        else if (values[0].includes('PreferredCarrier'))
+          updateInFlowVendorList(values, spreadsheet);
 
         if (sheets[sheet].getSheetName().substring(0, 7) !== "Copy Of") // Don't delete the sheets that are duplicates
           spreadsheet.deleteSheet(sheets[sheet]) // Delete the new sheet that was created
@@ -712,7 +744,7 @@ function search(e, spreadsheet, sheet)
 
             output = output.sort(sortBySerial)
           }
-          else
+          else // Regular search through the descriptions
           {
             for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
             {
@@ -738,6 +770,8 @@ function search(e, spreadsheet, sheet)
                 }
               }
             }
+
+            output = output.sort(sortByLocations)
           }
         }
         else // The word 'not' was found in the search string
@@ -876,7 +910,7 @@ function search(e, spreadsheet, sheet)
 
             output = output.sort(sortBySerial)
           }
-          else
+          else // Regular search through the descriptions
           {
             for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
             {
@@ -913,6 +947,8 @@ function search(e, spreadsheet, sheet)
                 }
               }
             }
+
+            output = output.sort(sortByLocations)
           }
         }
 
@@ -1043,40 +1079,40 @@ function stockTransfer()
 function updateInFlowList_(values, spreadsheet, sheetName, startingIndex)
 {
   const sheet = spreadsheet.getSheetByName(sheetName)
-  const inFlowValues = sheet.getSheetValues(2, 1, sheet.getLastRow() - 1, 1).flat();
-  var isThereNewValuesToAdd = false, newValues = [];
 
-  for (var i = startingIndex; i < values.length; i++) // Start at 2 because we ignore the header and the first customer which is '.'
+  if (sheetName === 'Product Details')
   {
-    if (!inFlowValues.includes(values[i][0]))
-    {
-      isThereNewValuesToAdd = true;
-      newValues.push([values[i][0], ''])
-    }
-  }
-
-  if (isThereNewValuesToAdd)
-  {
-    const updatedValues = sheet.getSheetValues(2, 1, sheet.getLastRow() - 1, 2)
-    updatedValues.push(...newValues)
-    updatedValues.sort(sortByCustomers)
-    sheet.getRange(2, 1, updatedValues.length, 2).setValues(updatedValues).activate()
-    spreadsheet.toast('Number of new ' + sheetName.toLowerCase() + ' added: ' + newValues.length)
+    const lastCol = sheet.getLastColumn();
+    const header_ProductDetails = values.shift();
+    const columnsToKeep = sheet.getSheetValues(1, 1, 1, lastCol)[0].map(col => header_ProductDetails.indexOf(col))
+    const productDetails = values.map(col => [...columnsToKeep.map(c => col[c])])
+    sheet.showSheet().getRange(3, 1, sheet.getLastRow(), lastCol).clearContent().offset(0, 0, productDetails.length, lastCol).setValues(productDetails).activate()
   }
   else
-    spreadsheet.toast('No new ' + sheetName.toLowerCase() + ' to add...')
-}
+  {
+    const inFlowValues = sheet.getSheetValues(2, 1, sheet.getLastRow() - 1, 1).flat();
+    var isThereNewValuesToAdd = false, newValues = [];
 
-/**
- * This function handles the imported inFlow Vendor List and updates the data on the Vendor tab.
- * 
- * @param {String[][]}    values    : The values of the inFlow Vendor list
- * @param {Spreadsheet} spreadsheet : The active Spreadsheet
- * @author Jarren Ralf
- */
-function updateInFlowVendorList(values, spreadsheet)
-{
-  updateInFlowList_(values, spreadsheet, 'Vendors', 1)
+    for (var i = startingIndex; i < values.length; i++)
+    {
+      if (!inFlowValues.includes(values[i][0]))
+      {
+        isThereNewValuesToAdd = true;
+        newValues.push([values[i][0], ''])
+      }
+    }
+
+    if (isThereNewValuesToAdd)
+    {
+      const updatedValues = sheet.getSheetValues(2, 1, sheet.getLastRow() - 1, 2)
+      updatedValues.push(...newValues)
+      updatedValues.sort(sortByCustomers)
+      sheet.getRange(2, 1, updatedValues.length, 2).setValues(updatedValues).activate()
+      spreadsheet.toast('Number of new ' + sheetName.toLowerCase() + ' added: ' + newValues.length)
+    }
+    else
+      spreadsheet.toast('No new ' + sheetName.toLowerCase() + ' to add...')
+  }
 }
 
 /**
@@ -1089,6 +1125,23 @@ function updateInFlowVendorList(values, spreadsheet)
 function updateInFlowCustomerList(values, spreadsheet)
 {
   updateInFlowList_(values, spreadsheet, 'Customers', 2)
+}
+
+function updateInflowProductDetails(values, spreadsheet)
+{
+  updateInFlowList_(values, spreadsheet, 'Product Details')
+}
+
+/**
+ * This function handles the imported inFlow Vendor List and updates the data on the Vendor tab.
+ * 
+ * @param {String[][]}    values    : The values of the inFlow Vendor list
+ * @param {Spreadsheet} spreadsheet : The active Spreadsheet
+ * @author Jarren Ralf
+ */
+function updateInFlowVendorList(values, spreadsheet)
+{
+  updateInFlowList_(values, spreadsheet, 'Vendors', 1)
 }
 
 /**
