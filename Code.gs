@@ -105,7 +105,14 @@ function clear()
   const numRows = sheet.getLastRow() - 2
 
   if (numRows > 0)
-    sheet.getRange(3, 1, numRows, sheet.getLastColumn()).setBackground('white').clearContent()
+  {
+    const sheetName = sheet.getSheetName()
+    const numCols = sheet.getLastColumn();
+    const colours = (sheetName === 'Sales Order' ) ? new Array(numRows).fill([...new Array(numCols - 1).fill('white'), '#d9d9d9']): 
+                    (sheetName === 'Stock Levels') ? new Array(numRows).fill([...new Array(numCols - 2).fill('white'), '#d9d9d9', '#d9d9d9']) : 
+                                                     new Array(numCols).fill(new Array(numCols).fill('white'));
+    sheet.getRange(3, 1, numRows, numCols).setBackgrounds(colours).clearContent()
+  }
 }
 
 /**
