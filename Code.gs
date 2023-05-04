@@ -16,6 +16,8 @@ function doGet(e)
 
     if (inFlowImportType === 'Barcodes')
       return downloadInflowBarcodes()
+    else if (inFlowImportType === 'Pictures')
+      return downloadInflowPictures()
     else if (inFlowImportType === 'ProductDetails')
       return downloadInflowProductDetails()
     else if (inFlowImportType === 'PurchaseOrder')
@@ -216,6 +218,17 @@ function downloadButton_Barcodes()
  * 
  * @author Jarren Ralf
  */
+function downloadButton_Pictures()
+{
+  downloadButton('Pictures')
+}
+
+/**
+ * This function calls another function that will launch a modal dialog box which allows the user to click a download button, which will lead to 
+ * a csv file of an inFlow Purchase Order to be downloaded, then imported into the inFlow inventory system.
+ * 
+ * @author Jarren Ralf
+ */
 function downloadButton_ProductDetails()
 {
   downloadButton('ProductDetails')
@@ -255,65 +268,128 @@ function downloadButton_StockLevels()
 }
 
 /**
- * This function takes the array of data on the Moncton's inFlow Item Quantities page and it creates a csv file that can be downloaded from the Browser.
- * 
- * @return Returns the csv text file that file be downloaded by the user.
- * @author Jarren Ralf
- */
-function downloadInflowBarcodes()
-{
-  const spreadsheet = SpreadsheetApp.getActive();
-  const sheet = spreadsheet.getSheetByName("Moncton's inFlow Item Quantities");
-  const upcDatabase = spreadsheet.getSheetByName('UPC Database');
-  const upcs = upcDatabase.getSheetValues(2, 1, upcDatabase.getLastRow() - 1, 3)
-  const data = sheet.getSheetValues(3, 1, sheet.getLastRow() - 2, 1).map(item => {
-    item.push('');
-    upcs.map(upc => {
-      if (upc[2] === item[0])
-        item[1] += upc[0] + ','
-    })
-    return item;
-  })
-
-  for (var row = 0, csv = "Name,Barcode\r\n"; row < data.length; row++)
-  {
-    for (var col = 0; col < data[row].length; col++)
-    {
-      if (data[row][col].toString().indexOf(",") != - 1)
-        data[row][col] = "\"" + data[row][col] + "\"";
-    }
-
-    csv += (row < data.length - 1) ? data[row].join(",") + "\r\n" : data[row];
-  }
-
-  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.CSV).downloadAsFile('inFlow_ProductDetails.csv');
-}
-
-/**
  * This function takes three arguments that will be used to create a csv file that can be downloaded from the Browser.
  * 
  * @param {String} sheetName  : The name of the sheet that the data is coming from
  * @param {String} csvHeaders : The header names of the csv file
  * @param {String} fileName   : The name of the csv file that will be produced
  * @param {Number} excludeCol : The number of columns at the end of the data that provide information to the user, but do not need to be imported into inFlow
+ * @param {String[]} varArgs  : The variable number of arguments which is the name of the headers from the Product Details data
  * @return Returns the csv text file that file be downloaded by the user.
  * @author Jarren Ralf
  */
-function downloadInflow(sheetName, csvHeaders, fileName, excludeCol)
+function downloadInflow(sheetName, csvHeaders, fileName, excludeCol, ...varArgs)
 {
   const sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
   var data = sheet.getSheetValues(3, 1, sheet.getLastRow() - 2, sheet.getLastColumn() - excludeCol)
 
   if (sheetName === 'Product Details')
   {
-    const name = data[0].indexOf('Name')
-    const description = data[0].indexOf('Description')
-    data = data.filter(header => !header.some(element => element.toString().includes('\n'))).map(header => {
-      header[name] = "\"" + header[name] + "\"";
-      header[description] = "\"" + header[description] + "\"";
+    const header = sheet.getSheetValues(1, 1, 1, sheet.getLastColumn())[0];
+    const indecies = varArgs.map(arg => header.indexOf(arg))
+    var sku, uniqueSKUs = [], inflowData = [], index = -1;
+    indecies.unshift(header.indexOf('Name')) // Add the google description column to the front of the list
 
-      return header;
-    })
+    if (varArgs.includes('Barcode'))
+    {
+      const upcs = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString())
+      const numUpcs = upcs.length
+      var upcCodes = ''
+
+      data.map(descrip => {
+        sku = descrip[0].split(' - ')
+        upcCodes = ''
+
+        if (sku.length >= 5)
+        {
+          index = uniqueSKUs.indexOf(sku[0].toUpperCase());
+
+          if (index === -1)
+          {
+            for (var i = 1; i < numUpcs; i++)
+              if (upcs[i][1].toUpperCase() === sku[0].toUpperCase())
+                upcCodes += upcs[i][0] + ','
+
+            uniqueSKUs.push(sku[0].toUpperCase())
+            inflowData.push([descrip[indecies[0]], upcCodes])
+          }
+          else
+          {
+            uniqueSKUs.splice(index, 1)
+            inflowData.splice(index, 1)
+          }
+        }     
+      })
+    }
+    else if (varArgs.includes('PicturePath'))
+    {
+      const fromShopifySheet = SpreadsheetApp.openById('1sLhSt5xXPP5y9-9-K8kq4kMfmTuf6a9_l9Ohy0r82gI').getSheetByName('FromShopify')
+      const shopifyHeader = fromShopifySheet.getSheetValues(1, 1, 1, fromShopifySheet.getLastColumn())[0];
+      const numRows = fromShopifySheet.getLastRow() - 1;
+      const skus  = fromShopifySheet.getSheetValues(2, shopifyHeader.indexOf('Variant SKU')   + 1, numRows, 1);
+      const imgs1 = fromShopifySheet.getSheetValues(2, shopifyHeader.indexOf('Image Src')     + 1, numRows, 1);
+      const imgs2 = fromShopifySheet.getSheetValues(2, shopifyHeader.indexOf('Variant Image') + 1, numRows, 1);
+
+      data.map(descrip => {
+        sku = descrip[0].split(' - ')
+
+        if (sku.length >= 5)
+        {
+          index = uniqueSKUs.indexOf(sku[0].toUpperCase());
+
+          if (index === -1)
+          {
+            for (var i = 0; i < numRows; i++)
+            {
+              if (skus[i][0].toString().toUpperCase() == sku[0].toString().toUpperCase())
+              {
+                if (isNotBlank(imgs1[i][0]))
+                {
+                  uniqueSKUs.push(sku[0])
+                  inflowData.push([descrip[indecies[0]], imgs1[i][0]])
+                }
+                else if (isNotBlank(imgs2[i][0]))
+                {
+                  uniqueSKUs.push(sku[0])
+                  inflowData.push([descrip[indecies[0]], imgs2[i][0]])
+                }
+
+                break;
+              }
+            }
+          }
+          else
+          {
+            uniqueSKUs.splice(index, 1)
+            inflowData.splice(index, 1)
+          }
+        }     
+      })
+    }
+    else // Regular Product Details
+    {
+      data.map(descrip => {
+        sku = descrip[0].split(' - ')
+
+        if (sku.length >= 5)
+        {
+          index = uniqueSKUs.indexOf(sku[0]);
+
+          if (index === -1)
+          {
+            uniqueSKUs.push(sku[0])
+            inflowData.push([...indecies.map(index => descrip[index])])
+          }
+          else
+          {
+            uniqueSKUs.splice(index, 1)
+            inflowData.splice(index, 1)
+          }
+        }     
+      })
+    }
+
+    data = inflowData;
   }
 
   for (var row = 0, csv = csvHeaders; row < data.length; row++)
@@ -331,6 +407,38 @@ function downloadInflow(sheetName, csvHeaders, fileName, excludeCol)
 }
 
 /**
+ * This function takes the array of data on the Product Details page and it creates a csv file that can be downloaded from the Browser.
+ * 
+ * @return Returns the csv text file that file be downloaded by the user.
+ * @author Jarren Ralf
+ */
+function downloadInflowBarcodes()
+{
+  const sheetName = 'Product Details';
+  const csvHeaders = "Name,Barcode\r\n";
+  const fileName = 'inFlow_ProductDetails.csv';
+  const numColsToExclude = 0;
+  
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude, 'Barcode')
+}
+
+/**
+ * This function takes the array of data on the Product Details page and it creates a csv file that can be downloaded from the Browser.
+ * 
+ * @return Returns the csv text file that file be downloaded by the user.
+ * @author Jarren Ralf
+ */
+function downloadInflowPictures()
+{
+  const sheetName = 'Product Details';
+  const csvHeaders = "Name,PicturePath\r\n";
+  const fileName = 'inFlow_ProductDetails.csv';
+  const numColsToExclude = 0;
+  
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude, 'PicturePath')
+}
+
+/**
  * This function takes the array of data on the Purchase Order page and it creates a csv file that can be downloaded from the Browser.
  * 
  * @return Returns the csv text file that file be downloaded by the user.
@@ -339,11 +447,11 @@ function downloadInflow(sheetName, csvHeaders, fileName, excludeCol)
 function downloadInflowProductDetails()
 {
   const sheetName = 'Product Details';
-  const csvHeaders = "Name,Category,ItemType,Description,BarCode,ReorderPoint,ReorderQuantity,Remarks,NOTES,Barcode,IsActive,PicturePath\r\n";
+  const csvHeaders = "Name,Category,ReorderPoint,ReorderQuantity,Remarks,NOTES,IsActive\r\n";
   const fileName = 'inFlow_ProductDetails.csv';
   const numColsToExclude = 0;
   
-  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude)
+  return downloadInflow(sheetName, csvHeaders, fileName, numColsToExclude, 'Category', 'ReorderPoint', 'ReorderQuantity', 'Remarks', 'NOTES', 'IsActive')
 }
 
 /**
