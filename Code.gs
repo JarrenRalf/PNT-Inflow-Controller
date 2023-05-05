@@ -1,6 +1,3 @@
-/* Maybe create an onOpen function that prompts the user to import the inFlow stock levels so that the most update values can be used!
- */
-
 /**
  * This function is run when an html web app is launched. In our case, when the modal dialog box is produced at 
  * the point a user has downloaded inFlow Barcodes, Product Details, Purchase Order, Sales Order or Stock Levels inorder to produce the csv file.
@@ -74,6 +71,35 @@ function onEdit(e)
     Browser.msgBox(error)
     throw new Error(error);
   }
+}
+
+/**
+ * This function handles all of the on edit events of the spreadsheet, 
+ * 
+ * @param {Event Object} e : An instance of an event object that occurs when the spreadsheet is editted
+ * @author Jarren Ralf
+ */
+function installed_onOpen()
+{
+  //openDragAndDrop();
+  
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('PNT Controls')
+    // .addItem('Download Barcodes', 'downloadButton_Barcodes')
+    // .addItem('Download Pictures', 'downloadButton_Pictures')
+    // .addItem('Download Product Details', 'downloadButton_ProductDetails')
+    // .addSeparator()
+    .addSubMenu(ui.createMenu('Download')
+      .addItem('Barcodes', 'downloadButton_Barcodes')
+      .addItem('Pictures', 'downloadButton_Pictures')
+      .addItem('Product Details', 'downloadButton_ProductDetails')
+      .addItem('Purchase Orders', 'downloadButton_PurchaseOrder')
+      .addItem('Sales Orders', 'downloadButton_SalesOrder')
+      .addItem('Stock Levels', 'downloadButton_StockLevels'))
+    .addSubMenu(ui.createMenu('Import')
+      .addItem('Anything', 'openDragAndDrop')
+      .addItem('Stock Levels (From Drive)', 'updateStockLevels'))
+    .addToUi();
 }
 
 /**
@@ -664,6 +690,15 @@ function importAdagioPurchaseOrder(values, spreadsheet)
   }
   else
     SpreadsheetApp.getUi().alert('The items on this Adagio Purchase Order could not be placed on an inFlow Purchase Order because either the items are not found in the inFlow database or the Adagio description(s) are ambiguous.')
+}
+
+/**
+ * This function opens a modal dialogue box that allows the user to drag and drop a file for import.
+ */
+function openDragAndDrop()
+{
+  const html = HtmlService.createHtmlOutputFromFile('DragAndDrop.html').setWidth(800).setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Upload File')
 }
 
 /**
