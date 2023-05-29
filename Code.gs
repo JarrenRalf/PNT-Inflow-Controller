@@ -365,6 +365,30 @@ function copySelectedValues(sheet, isTransfer)
 }
 
 /**
+ * This function creates all of the triggers for the spreadsheet to function properly.
+ * 
+ * @author Jarren
+ */
+function createTriggers()
+{
+  const spreadsheet = SpreadsheetApp.getActive()
+  ScriptApp.newTrigger('onChange').forSpreadsheet(spreadsheet).onChange().create()
+  ScriptApp.newTrigger('installed_onEdit').forSpreadsheet(spreadsheet).onEdit().create()
+  ScriptApp.newTrigger('installed_onOpen').forSpreadsheet(spreadsheet).onOpen().create()
+  ScriptApp.newTrigger('updateUPCs').timeBased().atHour(9).everyDays(1).create()
+}
+
+/**
+ * This function deletes all of the triggers associated with this project.
+ * 
+ * @author Jarren
+ */
+function deleteAllTriggers()
+{
+  ScriptApp.getProjectTriggers().map(trigger => ScriptApp.deleteTrigger(trigger))
+}
+
+/**
  * This function launches a modal dialog box which allows the user to click a download button, which will lead to 
  * a csv file of the export data being downloaded.
  * 
@@ -1024,7 +1048,7 @@ function search(e, spreadsheet, sheet)
 
           if (searchesOrNot.length === 1) // The word 'not' WASN'T found in the string
           {
-            if (searches[0][0].substring(0, 3) === 'loc')
+            if (searches[0][0].substring(0, 3) === 'loc') // Search for locations
             {
               for (var i = 0; i < data.length; i++) // Loop through all of the locations from the search data
               {
@@ -1078,7 +1102,7 @@ function search(e, spreadsheet, sheet)
 
               output = output.sort(sortByLocations)
             }
-            else if (searches[0][0].substring(0, 3) === 'ser')
+            else if (searches[0][0].substring(0, 3) === 'ser') // Search for the serial number
             {
               if (numSearches === 1 && searches[0].length == 1)
                 output.push(...data.filter(serial => isNotBlank(serial[3])).map(values => {
@@ -1121,7 +1145,7 @@ function search(e, spreadsheet, sheet)
             }
             else // Regular search through the descriptions
             {
-              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1)
+              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
               {
                 const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
                 const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -1130,32 +1154,30 @@ function search(e, spreadsheet, sheet)
                 var m = Math.ceil((u + l)/2) // Midpoint
                 searches[0][0] = parseInt(searches[0][0])
 
-                while (l < m && u > m)
+                while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
                 {
                   if (searches[0][0] < parseInt(upcs[m][0]))
                     u = m;   
                   else if (searches[0][0] > parseInt(upcs[m][0]))
                     l = m;
-                  else
+                  else // UPC code was found!
+                  {
+                    const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+
+                    for (var i = 0; i < data.length; i++)
+                    {
+                      if (description === data[i][0])
+                      {
+                        UoM = data[i][0].toString().split(' - ')
+                        UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                        output.push([UoM, ...data[i]]);
+                      }
+                    }
                     break; // Item was found, therefore stop searching
+                  }
 
                   m = Math.ceil((u + l)/2) // Midpoint
-                }
-
-                if (l < m && u > m)
-                {
-                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-
-                  for (var i = 0; i < data.length; i++)
-                  {
-                    if (description === data[i][0])
-                    {
-                      UoM = data[i][0].toString().split(' - ')
-                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
-
-                      output.push([UoM, ...data[i]]);
-                    }
-                  }
                 }
               }
               else
@@ -1419,7 +1441,7 @@ function search(e, spreadsheet, sheet)
 
           if (searchesOrNot.length === 1) // The word 'not' WASN'T found in the string
           {
-            if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // This ap
+            if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
             {
               const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
               const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -1428,25 +1450,23 @@ function search(e, spreadsheet, sheet)
               var m = Math.ceil((u + l)/2) // Midpoint
               searches[0][0] = parseInt(searches[0][0])
 
-              while (l < m && u > m)
+              while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
               {
                 if (searches[0][0] < parseInt(upcs[m][0]))
                   u = m;   
                 else if (searches[0][0] > parseInt(upcs[m][0]))
                   l = m;
-                else
+                else // UPC code was found!
+                {
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                  isInflow = inflowItems.find(v => v[0] === description)
+                  UoM = description.toString().split(' - ')
+                  UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                  output.push([UoM, description, (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
                   break; // Item was found, therefore stop searching
-
+                }
+                  
                 m = Math.ceil((u + l)/2) // Midpoint
-              }
-
-              if (l < m && u > m)
-              {
-                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-                isInflow = inflowItems.find(v => v[0] === description)
-                UoM = description.toString().split(' - ')
-                UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
-                output.push([UoM, description, (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
               }
             }
             else
@@ -1579,25 +1599,23 @@ function search(e, spreadsheet, sheet)
               var m = Math.ceil((u + l)/2) // Midpoint
               searches[0][0] = parseInt(searches[0][0])
 
-              while (l < m && u > m)
+              while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
               {
                 if (searches[0][0] < parseInt(upcs[m][0]))
                   u = m;   
                 else if (searches[0][0] > parseInt(upcs[m][0]))
                   l = m;
-                else
+                else // UPC code was found!
+                {
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                  isInflow = inflowItems.find(v => v[0] === description)
+                  UoM = description.toString().split(' - ')
+                  UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                  output.push([UoM, description, (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
                   break; // Item was found, therefore stop searching
-
+                }
+                  
                 m = Math.ceil((u + l)/2) // Midpoint
-              }
-
-              if (l < m && u > m)
-              {
-                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-                isInflow = inflowItems.find(v => v[0] === description)
-                UoM = description.toString().split(' - ')
-                UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
-                output.push([UoM, description, (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
               }
             }
             else
@@ -1773,7 +1791,7 @@ function search(e, spreadsheet, sheet)
             }
             else // Regular search through the descriptions
             {
-              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // This ap
+              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
               {
                 const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
                 const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -1782,32 +1800,31 @@ function search(e, spreadsheet, sheet)
                 var m = Math.ceil((u + l)/2) // Midpoint
                 searches[0][0] = parseInt(searches[0][0])
 
-                while (l < m && u > m)
+                while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
                 {
                   if (searches[0][0] < parseInt(upcs[m][0]))
                     u = m;   
                   else if (searches[0][0] > parseInt(upcs[m][0]))
                     l = m;
-                  else
-                    break; // Item was found, therefore stop searching
-
-                  m = Math.ceil((u + l)/2) // Midpoint
-                }
-
-                if (l < m && u > m)
-                {
-                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-
-                  for (var i = 0; i < data.length; i++)
+                  else // UPC code was found!
                   {
-                    if (description === data[i][0])
-                    {
-                      UoM = data[i][0].toString().split(' - ')
-                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                    const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
 
-                      output.push([UoM, ...data[i]]);
+                    for (var i = 0; i < data.length; i++)
+                    {
+                      if (description === data[i][0])
+                      {
+                        UoM = data[i][0].toString().split(' - ')
+                        UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                        output.push([UoM, ...data[i]]);
+                      }
                     }
+
+                    break; // Item was found, therefore stop searching
                   }
+                    
+                  m = Math.ceil((u + l)/2) // Midpoint
                 }
               }
               else
