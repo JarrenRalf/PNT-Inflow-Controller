@@ -987,7 +987,7 @@ function search(e, spreadsheet, sheet)
 
   if (row == rowEnd && (colEnd == null || colEnd == 3 || col == colEnd)) // Check and make sure only a single cell is being edited
   {
-    if (row === 3 && col === 1)
+    if (row === 3 && col === 1) // The check box that toggle the "Add New Items" mode
     {
       var rng  = sheet.getRange(1, 1, 3, 5);
       var vals = rng.getValues()
@@ -1121,19 +1121,40 @@ function search(e, spreadsheet, sheet)
             }
             else // Regular search through the descriptions
             {
-              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // This ap
+              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1)
               {
-                const sku = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).find(upc => upc[0] === searches[0][0])[1].toString().toUpperCase()
-                const item = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).find(u => u[6] === sku)
+                const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
+                const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
+                var l = 0; // Lower-bound
+                var u = upcs.length - 1; // Upper-bound
+                var m = Math.ceil((u + l)/2) // Midpoint
+                searches[0][0] = parseInt(searches[0][0])
 
-                for (var i = 0; i < data.length; i++)
+                while (l < m && u > m)
                 {
-                  if (item[1] === data[i][0])
-                  {
-                    UoM = data[i][0].toString().split(' - ')
-                    UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                  if (searches[0][0] < parseInt(upcs[m][0]))
+                    u = m;   
+                  else if (searches[0][0] > parseInt(upcs[m][0]))
+                    l = m;
+                  else
+                    break; // Item was found, therefore stop searching
 
-                    output.push([UoM, ...data[i]]);
+                  m = Math.ceil((u + l)/2) // Midpoint
+                }
+
+                if (l < m && u > m)
+                {
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+
+                  for (var i = 0; i < data.length; i++)
+                  {
+                    if (description === data[i][0])
+                    {
+                      UoM = data[i][0].toString().split(' - ')
+                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                      output.push([UoM, ...data[i]]);
+                    }
                   }
                 }
               }
@@ -1392,7 +1413,6 @@ function search(e, spreadsheet, sheet)
           const functionRunTimeRange = sheet.getRange(2, 1);   // The range that will display the runtimes for the search and formatting
           const itemSearchFullRange = sheet.getRange(4, 1, sheet.getMaxRows() - 2, 5); // The entire range of the Item Search page
           const numSearches = searches.length; // The number searches
-          const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A').sort(sortByCategories)
           const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
           const inflowItems = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1);
           var output = [], numSearchWords, isInflow;
@@ -1401,13 +1421,38 @@ function search(e, spreadsheet, sheet)
           {
             if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // This ap
             {
-              const sku = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).find(upc => upc[0] === searches[0][0])[1].toString().toUpperCase()
-              const item = data.find(u => u[6] === sku)
-              isInflow = inflowItems.find(v => v[0] === item[1])
-              output.push([item[0], item[1], (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
+              const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
+              const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
+              var l = 0; // Lower-bound
+              var u = upcs.length - 1; // Upper-bound
+              var m = Math.ceil((u + l)/2) // Midpoint
+              searches[0][0] = parseInt(searches[0][0])
+
+              while (l < m && u > m)
+              {
+                if (searches[0][0] < parseInt(upcs[m][0]))
+                  u = m;   
+                else if (searches[0][0] > parseInt(upcs[m][0]))
+                  l = m;
+                else
+                  break; // Item was found, therefore stop searching
+
+                m = Math.ceil((u + l)/2) // Midpoint
+              }
+
+              if (l < m && u > m)
+              {
+                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                isInflow = inflowItems.find(v => v[0] === description)
+                UoM = description.toString().split(' - ')
+                UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                output.push([UoM, description, (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
+              }
             }
             else
             {
+              const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A').sort(sortByCategories)
+              
               for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
               {
                 loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
@@ -1434,6 +1479,7 @@ function search(e, spreadsheet, sheet)
           }
           else // The word 'not' was found in the search string
           {
+            const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A').sort(sortByCategories)
             const dontIncludeTheseWords = searchesOrNot[1].split(/\s+/);
 
             for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
@@ -1518,22 +1564,46 @@ function search(e, spreadsheet, sheet)
 
         if (sheet.getSheetValues(3, 1, 1, 1)[0][0]) // Check if the Search page is in "Add New Item" mode
         {
-          const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A').sort(sortByCategories)
           const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
           const inflowItems = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1);
           var numSearchWords, isInflow;
 
           if (searchesOrNot.length === 1) // The word 'not' WASN'T found in the string
           {
-            if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // This ap
+            if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
             {
-              const sku = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).find(upc => upc[0] === searches[0][0])[1].toString().toUpperCase()
-              const item = data.find(u => u[6] === sku)
-              isInflow = inflowItems.find(v => v[0] === item[1])
-              output.push([item[0], item[1], (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
+              const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
+              const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
+              var l = 0; // Lower-bound
+              var u = upcs.length - 1; // Upper-bound
+              var m = Math.ceil((u + l)/2) // Midpoint
+              searches[0][0] = parseInt(searches[0][0])
+
+              while (l < m && u > m)
+              {
+                if (searches[0][0] < parseInt(upcs[m][0]))
+                  u = m;   
+                else if (searches[0][0] > parseInt(upcs[m][0]))
+                  l = m;
+                else
+                  break; // Item was found, therefore stop searching
+
+                m = Math.ceil((u + l)/2) // Midpoint
+              }
+
+              if (l < m && u > m)
+              {
+                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                isInflow = inflowItems.find(v => v[0] === description)
+                UoM = description.toString().split(' - ')
+                UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                output.push([UoM, description, (isInflow == null) ? 'NOT in inFlow' : '', '', '']);
+              }
             }
             else
             {
+              const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A').sort(sortByCategories)
+
               for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
               {
                 loop: for (var j = 0; j < numSearches; j++) // Loop through the number of searches
@@ -1560,6 +1630,7 @@ function search(e, spreadsheet, sheet)
           }
           else // The word 'not' was found in the search string
           {
+            const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A').sort(sortByCategories)
             const dontIncludeTheseWords = searchesOrNot[1].split(/\s+/);
 
             for (var i = 0; i < data.length; i++) // Loop through all of the descriptions from the search data
@@ -1704,17 +1775,38 @@ function search(e, spreadsheet, sheet)
             {
               if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // This ap
               {
-                const sku = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).find(upc => upc[0] === searches[0][0])[1].toString().toUpperCase()
-                const item = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).find(u => u[6] === sku)
+                const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
+                const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
+                var l = 0; // Lower-bound
+                var u = upcs.length - 1; // Upper-bound
+                var m = Math.ceil((u + l)/2) // Midpoint
+                searches[0][0] = parseInt(searches[0][0])
 
-                for (var i = 0; i < data.length; i++)
+                while (l < m && u > m)
                 {
-                  if (item[1] === data[i][0])
-                  {
-                    UoM = data[i][0].toString().split(' - ')
-                    UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+                  if (searches[0][0] < parseInt(upcs[m][0]))
+                    u = m;   
+                  else if (searches[0][0] > parseInt(upcs[m][0]))
+                    l = m;
+                  else
+                    break; // Item was found, therefore stop searching
 
-                    output.push([UoM, ...data[i]]);
+                  m = Math.ceil((u + l)/2) // Midpoint
+                }
+
+                if (l < m && u > m)
+                {
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+
+                  for (var i = 0; i < data.length; i++)
+                  {
+                    if (description === data[i][0])
+                    {
+                      UoM = data[i][0].toString().split(' - ')
+                      UoM = (UoM.length >= 5) ? UoM[UoM.length - 1] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
+
+                      output.push([UoM, ...data[i]]);
+                    }
                   }
                 }
               }
@@ -2141,4 +2233,22 @@ function updateStockLevels()
   const startTime = new Date().getTime();
   const inflowData = Utilities.parseCsv(DriveApp.getFilesByName("inFlow_StockLevels.csv").next().getBlob().getDataAsString())
   importStockLevels(inflowData, SpreadsheetApp.getActive(), startTime)
+}
+
+/**
+ * This function looks at the UPC database and removes all of the barcodes that are not UPC-A. It also updates the data with the typical Google sheets description string.
+ * 
+ * @author Jarren Ralf
+ */
+function updateUPCs()
+{
+  var sku_upc, item;
+  const adagioInventory = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A')
+  const data = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).filter(upc => isUPC_A(upc[0])).map(upcs => {
+    sku_upc = upcs[1].toUpperCase()
+    item = adagioInventory.find(sku => sku[6] === sku_upc)
+    return (item != null) ? [upcs[0], item[1]] : null;
+  }).filter(val => val != null).sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+
+  SpreadsheetApp.getActive().getSheetByName('UPC Database').clearContents().getRange(1, 1, data.length, data[0].length).setNumberFormat('@').setValues(data)
 }
