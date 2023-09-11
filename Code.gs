@@ -1403,6 +1403,54 @@ function openDragAndDrop()
 }
 
 /**
+ * This function takes the information from the Item Search or Manual Counts page and the user's recently scanned barcode in the created date column and it 
+ * populates the Manual Scan page with the relevant data need to update the count of the particular item.
+ * 
+ * @param {Spreadsheet}  ss    : The active spreadsheet.
+ * @param {Sheet}       sheet  : The active sheet.
+ * @param {Number}      rowNum : The row number of the current item.
+ * @author Jarren Ralf
+ */
+function populateManualScan(ss, sheet, rowNum, newItemDescription)
+{
+  const barcodeInputRange = ss.getSheetByName('Scan').getRange(1, 1);
+  const manualCountsPage = ss.getSheetByName("Counts");
+  const currentStock = (sheet.getSheetName() === 'Item Search') ? 2 : 1;
+  const lastRow = manualCountsPage.getLastRow();
+  var itemValues = (sheet.getSheetName() === 'Item Search') ? sheet.getSheetValues(rowNum, 2, 1, 3)[0] : sheet.getSheetValues(rowNum, 1, 1, 2)[0];
+
+  if (newItemDescription != null)
+  {
+    itemValues[0] = newItemDescription;
+    itemValues[currentStock] = '';
+  }
+
+  if (lastRow <= 3) // There are no items on the manual counts page
+    barcodeInputRange.setValue(itemValues[0] + '\nwill be added to the Counts page at line :\n' + 4 + '\nCurrent Stock :\n' + itemValues[currentStock]);
+  else // There are existing items on the manual counts page
+  {
+    const row = lastRow + 1;
+    const manualCountsValues = manualCountsPage.getSheetValues(4, 1, row - 4, 4);
+
+    for (var j = 0; j < manualCountsValues.length; j++) // Loop through the manual counts page
+    {
+      if (manualCountsValues[j][0] === itemValues[0]) // The description matches
+      {
+        barcodeInputRange.setValue(itemValues[0]  + '\nwas found on the Counts page at line :\n' + (j + 4) 
+                                                  + '\nCurrent Manual Count :\n' + manualCountsValues[j][2] 
+                                                  + '\nCurrent Running Sum :\n' + manualCountsValues[j][3]);
+        break; // Item was found on the manual counts page, therefore stop searching
+      }
+    }
+
+    if (j === manualCountsValues.length) // Item was not found on the manual counts page
+      barcodeInputRange.setValue(itemValues[0] + '\nwill be added to the Counts page at line :\n' + row + '\nCurrent Stock :\n' + itemValues[currentStock]);
+  }
+
+  barcodeInputRange.offset(0, 1).activate();
+}
+
+/**
  * This function processes the import of an InFlow Purchase Order.
  * 
  * @param {Event Object} : The event object on an spreadsheet edit.
@@ -2525,6 +2573,69 @@ function search(e, spreadsheet, sheet)
       functionRunTimeRange.setValue((new Date().getTime() - startTime)/1000 + " s");
       spreadsheet.toast('Searching Complete.')
     }
+    else if (row > 3 && col === 3)
+    {
+      if (userHasNotPressedDelete(e.value))
+      {
+        const value = e.value.split(' ', 2);
+        range.setValue(e.oldValue);
+
+        if (value[0].toLowerCase() === 'mmm')
+        {
+          if (value[1] > 100000)
+          {
+            const item = sheet.getSheetValues(row, 1, 1, 4)[0]
+            const upcDatabaseSheet = spreadsheet.getSheetByName("UPC Database");
+            const manAddedUPCsSheet = spreadsheet.getSheetByName("Manually Added UPCs");
+            upcDatabaseSheet.getRange(upcDatabaseSheet.getLastRow() + 1, 1, 1, 2).setNumberFormat('@').setValues([[value[1], item[1]]])
+            manAddedUPCsSheet.getRange(manAddedUPCsSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[item[1].split(' - ', 1)[0], value[1], item[0], item[1]]]);
+            const range = upcDatabaseSheet.getDataRange();
+            range.setNumberFormat('@').setValues(range.getValues().sort(sortUPCsNumerically))
+            populateManualScan(spreadsheet, sheet, row)
+          }
+          else
+            Browser.msgBox('Invalid UPC Code', 'Please type either mmm, uuu, aaa, or sss, followed by SPACE and the UPC Code.', Browser.Buttons.OK)
+        }
+        else if (value[0].toLowerCase() === 'uuu')
+        {
+          if (value[1] > 100000)
+          {
+            const item = sheet.getSheetValues(row, 2, 1, 1)[0][0];
+            const unmarryUpcSheet = spreadsheet.getSheetByName("UPCs to Unmarry");
+            unmarryUpcSheet.getRange(unmarryUpcSheet.getLastRow() + 1, 1, 1, 2).setNumberFormat('@').setValues([[value[1], item]]);
+            spreadsheet.getSheetByName('Scan').getRange(1, 1).activate()
+          }
+          else
+            Browser.msgBox('Invalid UPC Code', 'Please type either mmm, uuu, aaa, or sss, followed by SPACE and the UPC Code.', Browser.Buttons.OK)
+        }
+        // else if (value[0].toLowerCase() === 'aaa')
+        // {
+        //   if (value[1] > 100000)
+        //   {
+        //     const item = sheet.getSheetValues(row, 1, 1, 2)[0]
+        //     const newItem = item[1].split(' - ')
+        //     newItem[0] = 'MAKE_NEW_SKU'
+        //     item[1] = newItem.join(' - ')
+        //     const upcDatabaseSheet = spreadsheet.getSheetByName("UPC Database");
+        //     const manAddedUPCsSheet = spreadsheet.getSheetByName("Manually Added UPCs");
+        //     const inventorySheet = (isRichmondSpreadsheet(spreadsheet)) ? spreadsheet.getSheetByName('INVENTORY') : spreadsheet.getSheetByName('SearchData');
+        //     manAddedUPCsSheet.getRange(manAddedUPCsSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([['MAKE_NEW_SKU', value[1], item[0], item[1]]]);
+        //     upcDatabaseSheet.getRange(upcDatabaseSheet.getLastRow() + 1, 1, 1, 3).setNumberFormat('@').setValues([[value[1], item[0], item[1]]]); 
+        //     inventorySheet.getRange(inventorySheet.getLastRow() + 1, 1, 1, 2).setNumberFormat('@').setValues([[item[0], item[1]]]); // Add the 'MAKE_NEW_SKU' item to the inventory sheet
+
+        //     populateManualScan(spreadsheet, sheet, row, item[1])
+        //     sheet.getRange(4, 1, MAX_NUM_ITEMS, 6).setValues(spreadsheet.getSheetByName('Recent').getSheetValues(2, 1, MAX_NUM_ITEMS, 6));
+        //     sheet.getRange(1, 1, 1, 2).setValues([["The last " + MAX_NUM_ITEMS + " created items are displayed.", ""]]);
+        //   }
+        //   else
+        //     Browser.msgBox('Invalid UPC Code', 'Please type either mmm, uuu, aaa, or sss, followed by SPACE and the UPC Code.', Browser.Buttons.OK)
+        // }
+        else if (value[0].toLowerCase() === 'sss')
+          populateManualScan(spreadsheet, sheet, row)
+      }
+      else
+        range.setValue(e.oldValue);
+    }
   }
 }
 
@@ -2602,6 +2713,16 @@ function sortBySerial(a, b)
     else
       return Number(poNum1.match(/\d+/g)) - Number(poNum2.match(/\d+/g)) // Sort the PO numbers numerically
   }
+}
+
+/**
+ * This function sorts the UPC Codes in numerical order.
+ * 
+ * @author Jarren Ralf
+ */
+function sortUPCsNumerically(a, b)
+{
+  return parseInt(a[0]) - parseInt(b[0]);
 }
 
 /**
@@ -2726,9 +2847,21 @@ function updateUPCs()
     sku_upc = upcs[1].toUpperCase()
     item = adagioInventory.find(sku => sku[6] === sku_upc)
     return (item != null) ? [upcs[0], item[1]] : null;
-  }).filter(val => val != null).sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+  }).filter(val => val != null).sort(sortUPCsNumerically)
 
   SpreadsheetApp.getActive().getSheetByName('UPC Database').clearContents().getRange(1, 1, data.length, data[0].length).setNumberFormat('@').setValues(data)
+}
+
+/**
+* This function checks if the user has pressed delete on a certain cell or not, returning false if they have.
+*
+* @param {String or Undefined} value : An inputed string or undefined
+* @return {Boolean} Returns a boolean reporting whether the event object new value is not-undefined or not.
+* @author Jarren Ralf
+*/
+function userHasNotPressedDelete(value)
+{
+  return value !== undefined;
 }
 
 /**
