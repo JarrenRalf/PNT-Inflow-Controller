@@ -847,6 +847,21 @@ function isUPC_A(upcNumber)
 }
 
 /**
+ * This function returns true if the presented number is a EAN_13, false otherwise.
+ * 
+ * @param {Number} upcNumber : The EAN_13 number
+ * @returns Whether the given value is a EAN_13 or not
+ * @author Jarren Ralf
+ */
+function isEAN_13(upcNumber)
+{
+  for (var i = 0, sum = 0, upc = upcNumber.toString(); i < upc.length - 1; i++)
+    sum += (i % 2 === 0) ? Number(upc[i]) : Number(upc[i])*3
+
+  return upc.endsWith(Math.ceil(sum/10)*10 - sum)
+}
+
+/**
  * This function updates the Inventory sheet either by handling the imported inFlow Stock Levels csv or pulling data from the inFlow Stock Levels file in the drive.
  * 
  * @param {String[][]}    values    : The values of the inFlow Stock Levels
@@ -1076,87 +1091,97 @@ function manualScan(e, spreadsheet, sheet)
 
     if (isNotBlank(upcCode)) // The user may have hit the delete key
     {
-      if (/^\d+$/.test(upcCode) && isUPC_A(upcCode))
+      if (/^\d+$/.test(upcCode))
       {
-        const lastRow = manualCountsPage.getLastRow();
-        const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
-        const upcDatabase = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
-        var l = 0; // Lower-bound
-        var u = upcDatabase.length - 1; // Upper-bound
-        var m = Math.ceil((u + l)/2) // Midpoint
-        upcCode = parseInt(upcCode)
-
-        if (lastRow <= 3) // There are no items on the Counts page
+        if (isUPC_A(upcCode))
         {
-          while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
+          if (isEAN_13(upcCode))
           {
-            if (upcCode < parseInt(upcDatabase[m][0]))
-              u = m;   
-            else if (upcCode > parseInt(upcDatabase[m][0]))
-              l = m;
-            else // UPC code was found!
-            {
-              const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-              barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 4);
-              break; // Item was found, therefore stop searching
-            }
-              
-            m = Math.ceil((u + l)/2) // Midpoint
-          }
-        }
-        else // There are existing items on the Counts page
-        {
-          const row = lastRow + 1;
-          const manualCountsValues = manualCountsPage.getSheetValues(4, 1, row - 3, 5);
+            const lastRow = manualCountsPage.getLastRow();
+            const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
+            const upcDatabase = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
+            var l = 0; // Lower-bound
+            var u = upcDatabase.length - 1; // Upper-bound
+            var m = Math.ceil((u + l)/2) // Midpoint
+            upcCode = parseInt(upcCode)
 
-          while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
-          {
-            if (upcCode < parseInt(upcDatabase[m][0]))
-              u = m;   
-            else if (upcCode > parseInt(upcDatabase[m][0]))
-              l = m;
-            else // UPC code was found!
+            if (lastRow <= 3) // There are no items on the Counts page
             {
-              const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-
-              for (var j = 0; j < manualCountsValues.length; j++) // Loop through the Counts page
+              while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
               {
-                if (manualCountsValues[j][0] === description) // The description matches
+                if (upcCode < parseInt(upcDatabase[m][0]))
+                  u = m;   
+                else if (upcCode > parseInt(upcDatabase[m][0]))
+                  l = m;
+                else // UPC code was found!
                 {
-                  const countedSince = getCountedSinceString(manualCountsValues[j][4])
-                    
-                  barcodeInputRange.setValue(description  + '\nwas found on the Counts page at line :\n' + (j + 4) 
-                                                          + '\nCurrent Manual Count :\n' + manualCountsValues[j][2] 
-                                                          + '\nCurrent Running Sum :\n' + manualCountsValues[j][3]
-                                                          + '\nLast Counted :\n' + countedSince);
-                  break; // Item was found on the Counts page, therefore stop searching
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                  barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 4);
+                  break; // Item was found, therefore stop searching
                 }
+                  
+                m = Math.ceil((u + l)/2) // Midpoint
               }
-
-              if (j === manualCountsValues.length) // Item was not found on the Counts page
-                barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + row);
-
-              break; // Item was found, therefore stop searching
             }
-              
-            m = Math.ceil((u + l)/2) // Midpoint
+            else // There are existing items on the Counts page
+            {
+              const row = lastRow + 1;
+              const manualCountsValues = manualCountsPage.getSheetValues(4, 1, row - 3, 5);
+
+              while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
+              {
+                if (upcCode < parseInt(upcDatabase[m][0]))
+                  u = m;   
+                else if (upcCode > parseInt(upcDatabase[m][0]))
+                  l = m;
+                else // UPC code was found!
+                {
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+
+                  for (var j = 0; j < manualCountsValues.length; j++) // Loop through the Counts page
+                  {
+                    if (manualCountsValues[j][0] === description) // The description matches
+                    {
+                      const countedSince = getCountedSinceString(manualCountsValues[j][4])
+                        
+                      barcodeInputRange.setValue(description  + '\nwas found on the Counts page at line :\n' + (j + 4) 
+                                                              + '\nCurrent Manual Count :\n' + manualCountsValues[j][2] 
+                                                              + '\nCurrent Running Sum :\n' + manualCountsValues[j][3]
+                                                              + '\nLast Counted :\n' + countedSince);
+                      break; // Item was found on the Counts page, therefore stop searching
+                    }
+                  }
+
+                  if (j === manualCountsValues.length) // Item was not found on the Counts page
+                    barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + row);
+
+                  break; // Item was found, therefore stop searching
+                }
+                  
+                m = Math.ceil((u + l)/2) // Midpoint
+              }
+            }
+
+            if (l >= m || m >= u)
+            {
+              if (upcCode.toString().length > 25)
+                sheet.getRange(1, 1, 1, 2).setValues([['Barcode is Not Found.', '']]);
+              else
+                sheet.getRange(1, 1, 1, 2).setValues([['Barcode:\n\n' + upcCode + '\n\n is NOT FOUND.', '']]);
+
+              sheet.getRange(1, 1).activate()
+            }
+            else
+              sheet.getRange(1, 2).setValue('').activate();
           }
-        }
-
-        if (l >= m || m >= u)
-        {
-          if (upcCode.toString().length > 25)
-            sheet.getRange(1, 1, 1, 2).setValues([['Barcode is Not Found.', '']]);
           else
-            sheet.getRange(1, 1, 1, 2).setValues([['Barcode:\n\n' + upcCode + '\n\n is NOT FOUND.', '']]);
-
-          sheet.getRange(1, 1).activate()
+            barcodeInputRange.setValue('The following is not a EAN_13: ' + upcCode);
         }
         else
-          sheet.getRange(1, 2).setValue('').activate();
+          barcodeInputRange.setValue('The following is not a UPC-A: ' + upcCode);
       }
       else
-        barcodeInputRange.setValue('The following is not a UPC-A: ' + upcCode);
+        barcodeInputRange.setValue('The following barcode contains non-numerals: ' + upcCode);
     }
   }
   else if (barcodeInputRange.columnStart !== 1) // Quantity is entered
@@ -1654,7 +1679,7 @@ function search(e, spreadsheet, sheet)
             }
             else // Regular search through the descriptions
             {
-              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
+              if (/^\d+$/.test(searches[0][0]) && (isUPC_A(searches[0][0]) || isEAN_13(searches[0][0])) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned
               {
                 const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
                 const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -1950,7 +1975,7 @@ function search(e, spreadsheet, sheet)
 
           if (searchesOrNot.length === 1) // The word 'not' WASN'T found in the string
           {
-            if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
+            if (/^\d+$/.test(searches[0][0]) && (isUPC_A(searches[0][0]) || isEAN_13(searches[0][0])) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
             {
               const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
               const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -2099,7 +2124,7 @@ function search(e, spreadsheet, sheet)
 
           if (searchesOrNot.length === 1) // The word 'not' WASN'T found in the string
           {
-            if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
+            if (/^\d+$/.test(searches[0][0]) && (isUPC_A(searches[0][0]) || isEAN_13(searches[0][0])) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
             {
               const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
               const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -2300,7 +2325,7 @@ function search(e, spreadsheet, sheet)
             }
             else // Regular search through the descriptions
             {
-              if (/^\d+$/.test(searches[0][0]) && isUPC_A(searches[0][0]) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned in the cell
+              if (/^\d+$/.test(searches[0][0]) && (isUPC_A(searches[0][0]) || isEAN_13(searches[0][0])) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned
               {
                 const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
                 const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
@@ -2843,7 +2868,7 @@ function updateUPCs()
 {
   var sku_upc, item;
   const adagioInventory = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString()).filter(isActive => isActive[10] === 'A')
-  const data = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).filter(upc => isUPC_A(upc[0])).map(upcs => {
+  const data = Utilities.parseCsv(DriveApp.getFilesByName("BarcodeInput.csv").next().getBlob().getDataAsString()).filter(upc => isUPC_A(upc[0]) || isEAN_13(upc[0])).map(upcs => {
     sku_upc = upcs[1].toUpperCase()
     item = adagioInventory.find(sku => sku[6] === sku_upc)
     return (item != null) ? [upcs[0], item[1]] : null;
