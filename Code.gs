@@ -111,6 +111,16 @@ function installed_onOpen()
 }
 
 /**
+ * This function moves the selected items from the item search sheet to the Counts page.
+ * 
+ * @author Jarren Ralf
+ */
+function addToCounts()
+{
+  copySelectedValues(SpreadsheetApp.getActive().getSheetByName('Counts'))
+}
+
+/**
  * This function moves the selected items from the item search sheet to the new items page.
  * 
  * @author Jarren Ralf
@@ -357,6 +367,34 @@ function copySelectedValues(sheet, isTransfer)
       case 'New Items':
         var items = itemValues.map(v => isNotBlank(v[1]) ? [v[0], '', v[0].split(' - ', 2)[1], -1] : ['', '', '', '']).filter(u => isNotBlank(u[3]))
         var colours = items.map(_ => ['white', 'white', 'white', 'white'])
+        break;
+      case 'Counts':
+        var items = [], index = 0;
+        itemValues.map(v => {
+          index = items.findIndex(descrip => descrip[0] == v[0]);
+
+          if (index !== -1)
+          {
+            items[index][1] += ', ' + v[1] + ': ' + v[2]
+            items[index][3] += v[2]
+          }
+          else
+            (isNotBlank(v[2])) ? items.push([v[0], v[1] + ': ' + v[2], '', Number(v[2])]) : items.push([v[0], '', '', 0])
+          
+        })
+        var colours = items.map(_ => ['white', 'white', 'white'])
+        items = items.map(item => {
+
+          if (item[1].split(':').length > 2) // If there are more than 1 location, then report the sum
+            item[1] += '; Sum: ' + item.pop()
+          else
+            item.pop()
+
+          return item 
+        })
+
+        if (items.length > 0)
+          formatCountsPage(sheet, sheet.getLastRow() + 1, items.length, 7)
         break;
     }
 
@@ -1093,92 +1131,88 @@ function manualScan(e, spreadsheet, sheet)
     {
       if (/^\d+$/.test(upcCode))
       {
-        if (isUPC_A(upcCode))
+        if (isUPC_A(upcCode) || isEAN_13(upcCode))
         {
-          if (isEAN_13(upcCode))
+          const lastRow = manualCountsPage.getLastRow();
+          const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
+          const upcDatabase = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
+          var l = 0; // Lower-bound
+          var u = upcDatabase.length - 1; // Upper-bound
+          var m = Math.ceil((u + l)/2) // Midpoint
+          upcCode = parseInt(upcCode)
+
+          if (lastRow <= 2) // There are no items on the Counts page
           {
-            const lastRow = manualCountsPage.getLastRow();
-            const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
-            const upcDatabase = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
-            var l = 0; // Lower-bound
-            var u = upcDatabase.length - 1; // Upper-bound
-            var m = Math.ceil((u + l)/2) // Midpoint
-            upcCode = parseInt(upcCode)
-
-            if (lastRow <= 3) // There are no items on the Counts page
+            while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
             {
-              while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
+              if (upcCode < parseInt(upcDatabase[m][0]))
+                u = m;   
+              else if (upcCode > parseInt(upcDatabase[m][0]))
+                l = m;
+              else // UPC code was found!
               {
-                if (upcCode < parseInt(upcDatabase[m][0]))
-                  u = m;   
-                else if (upcCode > parseInt(upcDatabase[m][0]))
-                  l = m;
-                else // UPC code was found!
-                {
-                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
-                  barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 4);
-                  break; // Item was found, therefore stop searching
-                }
-                  
-                m = Math.ceil((u + l)/2) // Midpoint
+                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
+                break; // Item was found, therefore stop searching
               }
+                
+              m = Math.ceil((u + l)/2) // Midpoint
             }
-            else // There are existing items on the Counts page
+          }
+          else // There are existing items on the Counts page
+          {
+            const row = lastRow + 1;
+            const manualCountsValues = manualCountsPage.getSheetValues(3, 1, row - 3, 5);
+
+            while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
             {
-              const row = lastRow + 1;
-              const manualCountsValues = manualCountsPage.getSheetValues(4, 1, row - 3, 5);
-
-              while (l < m && u > m) // Loop through the UPC codes using the binary search algorithm
+              if (upcCode < parseInt(upcDatabase[m][0]))
+                u = m;   
+              else if (upcCode > parseInt(upcDatabase[m][0]))
+                l = m;
+              else // UPC code was found!
               {
-                if (upcCode < parseInt(upcDatabase[m][0]))
-                  u = m;   
-                else if (upcCode > parseInt(upcDatabase[m][0]))
-                  l = m;
-                else // UPC code was found!
-                {
-                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
 
-                  for (var j = 0; j < manualCountsValues.length; j++) // Loop through the Counts page
+                for (var j = 0; j < manualCountsValues.length; j++) // Loop through the Counts page
+                {
+                  if (manualCountsValues[j][0] === description) // The description matches
                   {
-                    if (manualCountsValues[j][0] === description) // The description matches
-                    {
-                      const countedSince = getCountedSinceString(manualCountsValues[j][4])
-                        
-                      barcodeInputRange.setValue(description  + '\nwas found on the Counts page at line :\n' + (j + 4) 
-                                                              + '\nCurrent Manual Count :\n' + manualCountsValues[j][2] 
-                                                              + '\nCurrent Running Sum :\n' + manualCountsValues[j][3]
-                                                              + '\nLast Counted :\n' + countedSince);
-                      break; // Item was found on the Counts page, therefore stop searching
-                    }
+                    const countedSinceString = (isNotBlank(manualCountsValues[j][4])) ? '\nLast Counted :\n' + getCountedSinceString(manualCountsValues[j][4]) : '';
+                      
+                    barcodeInputRange.setValue(description  + '\nwas found on the Counts page at line :\n' + (j + 3) 
+                                                            + '\nCurrent inFlow Location(s) :\n' + manualCountsValues[j][1]
+                                                            + '\nCurrent Manual Count :\n' + manualCountsValues[j][2] 
+                                                            + '\nCurrent Running Sum :\n' + manualCountsValues[j][3]
+                                                            + countedSinceString);
+                    break; // Item was found on the Counts page, therefore stop searching
                   }
-
-                  if (j === manualCountsValues.length) // Item was not found on the Counts page
-                    barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + row);
-
-                  break; // Item was found, therefore stop searching
                 }
-                  
-                m = Math.ceil((u + l)/2) // Midpoint
+
+                if (j === manualCountsValues.length) // Item was not found on the Counts page
+                  barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + row);
+
+                break; // Item was found, therefore stop searching
               }
+                
+              m = Math.ceil((u + l)/2) // Midpoint
             }
+          }
 
-            if (l >= m || m >= u)
-            {
-              if (upcCode.toString().length > 25)
-                sheet.getRange(1, 1, 1, 2).setValues([['Barcode is Not Found.', '']]);
-              else
-                sheet.getRange(1, 1, 1, 2).setValues([['Barcode:\n\n' + upcCode + '\n\n is NOT FOUND.', '']]);
-
-              sheet.getRange(1, 1).activate()
-            }
+          if (l >= m || m >= u)
+          {
+            if (upcCode.toString().length > 25)
+              sheet.getRange(1, 1, 1, 2).setValues([['Barcode is Not Found.', '']]);
             else
-              sheet.getRange(1, 2).setValue('').activate();
+              sheet.getRange(1, 1, 1, 2).setValues([['Barcode:\n\n' + upcCode + '\n\n is NOT FOUND.', '']]);
+
+            sheet.getRange(1, 1).activate()
           }
           else
-            barcodeInputRange.setValue('The following is not a EAN_13: ' + upcCode);
+            sheet.getRange(1, 2).setValue('').activate();
         }
         else
-          barcodeInputRange.setValue('The following is not a UPC-A: ' + upcCode);
+          barcodeInputRange.setValue('The following is not a UPC-A or EAN-13: ' + upcCode);
       }
       else
         barcodeInputRange.setValue('The following barcode contains non-numerals: ' + upcCode);
@@ -1201,6 +1235,8 @@ function manualScan(e, spreadsheet, sheet)
       {
         manualCountsPage.getRange(item[2], 3, 1, 5).setNumberFormat('@').setValues([['', '', '', '', '']])
         sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
+                                                        + '\nCurrent inFlow Location(s) :'
+                                                        + item[4]
                                                         + '\nCurrent Manual Count :\n\nCurrent Running Sum :\n',
                                                         '']]);
       }
@@ -1228,7 +1264,7 @@ function manualScan(e, spreadsheet, sheet)
           const upcDatabaseSheet = spreadsheet.getSheetByName("UPC Database");
           const manAddedUPCsSheet = spreadsheet.getSheetByName("Manually Added UPCs");
           manAddedUPCsSheet.getRange(manAddedUPCsSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[marriedItem[0], upc, marriedItem[4], item[0]]]);
-          upcDatabaseSheet.getRange(upcDatabaseSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[upc, marriedItem[4], item[0], item[4]]]); 
+          upcDatabaseSheet.getRange(upcDatabaseSheet.getLastRow() + 1, 1, 1, 2).setNumberFormat('@').setValues([[upc, item[0]]]); 
           barcodeInputRange.setValue('UPC Code has been added to the database temporarily.')
           spreadsheet.getSheetByName("Manual Scan").getRange(1, 1).activate();
         }
@@ -1243,58 +1279,112 @@ function manualScan(e, spreadsheet, sheet)
 
           if (item[1].split(' ')[0] === 'was') // The item was already on the Counts page
           {
-            const range = manualCountsPage.getRange(item[2], 3, 1, 5);
-            const itemValues = range.getValues()
-            const updatedCount = Number(itemValues[0][0]) + Number(quantity_String_Split[0]);
-            const countedSince = getCountedSinceString(itemValues[0][2])
-            const runningSum = (isNotBlank(itemValues[0][1])) ? ((Math.sign(quantity_String_Split[0]) === 1 || Math.sign(quantity_String_Split[0]) === 0)  ? 
-                                                                  String(itemValues[0][1]) + ' \+ ' + String(   quantity_String_Split[0])  : 
-                                                                  String(itemValues[0][1]) + ' \- ' + String(-1*quantity_String_Split[0])) :
-                                                                    ((isNotBlank(itemValues[0][0])) ? 
-                                                                      String(itemValues[0][0]) + ' \+ ' + String(quantity_String_Split[0]) : 
-                                                                      String(quantity_String_Split[0]));
+            if (Number(quantity_String_Split[0]) < 0)
+            {
+              const range = manualCountsPage.getRange(item[2], 3, 1, 5);
+              const itemValues = range.getValues()[0]
+              const updatedCount = Number(itemValues[0]) + Number(quantity_String_Split[0]);
+              const countedSince = getCountedSinceString(itemValues[2])
+              const runningSum_Split = itemValues[1].split(' + ').map(location => location.split(': '))
+              const idx = runningSum_Split.findIndex(loc => loc[0] == quantity_String_Split[1])
 
-            if (isNotBlank(itemValues[0][3]) && isNotBlank(itemValues[0][4]))
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                itemValues[0][3] + '\n' + quantity_String_Split[1], itemValues[0][4] + '\n' + quantity_String_Split[0].toString()]]);
-            else if (isNotBlank(itemValues[0][3]))
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                itemValues[0][3] + '\n' + quantity_String_Split[1], quantity_String_Split[0].toString()]]);
-            else if (isNotBlank(itemValues[0][4]))
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                quantity_String_Split[1], itemValues[0][4] + '\n' + quantity_String_Split[0].toString()]]);
+              if (idx !== -1)
+              {
+                runningSum_Split[idx][1] = runningSum_Split[idx][1] + quantity_String_Split[0]
+                var runningSum = runningSum_Split.map(u => u.join(': ')).join(' + ')
+                const quantity_Split = itemValues[4].split('\n')
+                quantity_Split[idx] = Number(quantity_Split[idx]) + Number(quantity_String_Split[0])
+                itemValues[4] = quantity_Split.join('\n')
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3], itemValues[4]]]);
+              }
+              else
+              {
+                var runningSum = (isNotBlank(itemValues[1])) ? ((Math.sign(quantity_String_Split[0]) === 1 || Math.sign(quantity_String_Split[0]) === 0)  ? 
+                                                                    String(itemValues[1]) + ' \+ ' + quantity_String_Split[1] + ': ' + String(   quantity_String_Split[0])  : 
+                                                                    String(itemValues[1]) + ' \- ' + quantity_String_Split[1] + ': ' + String(-1*quantity_String_Split[0])) :
+                                                                      ((isNotBlank(itemValues[0])) ? 
+                                                                        String(itemValues[0]) + ' \+ ' + quantity_String_Split[1] + ': ' + String(quantity_String_Split[0]) : 
+                                                                        quantity_String_Split[1] + ': ' + String(quantity_String_Split[0]));
+
+                if (isNotBlank(itemValues[3]) && isNotBlank(itemValues[4]))
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3] + '\n' + quantity_String_Split[1], itemValues[4] + '\n' + quantity_String_Split[0].toString()]]);
+                else if (isNotBlank(itemValues[3]))
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3] + '\n' + quantity_String_Split[1], quantity_String_Split[0].toString()]]);
+                else if (isNotBlank(itemValues[4]))
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    quantity_String_Split[1], itemValues[4] + '\n' + quantity_String_Split[0].toString()]]);
+                else
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    quantity_String_Split[1], quantity_String_Split[0].toString()]]);
+              }
+
+              sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
+                                                              + '\nCurrent inFlow Location(s) :\n' + item[4]
+                                                              + '\nCurrent Manual Count :\n' + updatedCount 
+                                                              + '\nCurrent Running Sum :\n' + runningSum
+                                                              + '\nLast Counted :\n' + countedSince,
+                                                              '']]);
+            }
             else
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                quantity_String_Split[1], quantity_String_Split[0].toString()]]);
+            {
+              const range = manualCountsPage.getRange(item[2], 3, 1, 5);
+              const itemValues = range.getValues()[0]
+              const updatedCount = Number(itemValues[0]) + Number(quantity_String_Split[0]);
+              const countedSince = getCountedSinceString(itemValues[2])
+              const runningSum = (isNotBlank(itemValues[1])) ? ((Math.sign(quantity_String_Split[0]) === 1 || Math.sign(quantity_String_Split[0]) === 0)  ? 
+                                                                    String(itemValues[1]) + ' \+ ' + quantity_String_Split[1] + ': ' + String(   quantity_String_Split[0])  : 
+                                                                    String(itemValues[1]) + ' \- ' + quantity_String_Split[1] + ': ' + String(-1*quantity_String_Split[0])) :
+                                                                      ((isNotBlank(itemValues[0])) ? 
+                                                                        String(itemValues[0]) + ' \+ ' + quantity_String_Split[1] + ': ' + String(quantity_String_Split[0]) : 
+                                                                        quantity_String_Split[1] + ': ' + String(quantity_String_Split[0]));
 
-            sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
-                                                            + '\nCurrent Manual Count :\n' + updatedCount 
-                                                            + '\nCurrent Running Sum :\n' + runningSum
-                                                            + '\nLast Counted :\n' + countedSince,
-                                                            '']]);
+              if (isNotBlank(itemValues[3]) && isNotBlank(itemValues[4]))
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  itemValues[3] + '\n' + quantity_String_Split[1], itemValues[4] + '\n' + quantity_String_Split[0].toString()]]);
+              else if (isNotBlank(itemValues[3]))
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  itemValues[3] + '\n' + quantity_String_Split[1], quantity_String_Split[0].toString()]]);
+              else if (isNotBlank(itemValues[4]))
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  quantity_String_Split[1], itemValues[4] + '\n' + quantity_String_Split[0].toString()]]);
+              else
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  quantity_String_Split[1], quantity_String_Split[0].toString()]]);
+
+              sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
+                                                              + '\nCurrent inFlow Location(s) :\n' + item[4]
+                                                              + '\nCurrent Manual Count :\n' + updatedCount 
+                                                              + '\nCurrent Running Sum :\n' + runningSum
+                                                              + '\nLast Counted :\n' + countedSince,
+                                                              '']]);
+            }
           }
           else
           {
             const lastRow = manualCountsPage.getLastRow();
             const row = lastRow + 1;
             const range = manualCountsPage.getRange(row, 1, 1, 7)
-            const itemValues = range.getValues()
+            const itemValues = range.getValues()[0]
 
-            if (isNotBlank(itemValues[0][5]) && isNotBlank(itemValues[0][6]))
+            if (isNotBlank(itemValues[5]) && isNotBlank(itemValues[6]))
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[0], '\'' + String(quantity_String_Split[0]),
-                new Date().getTime(), itemValues[0][5] + '\n' + quantity_String_Split[1], itemValues[0][6] + '\n' + quantity_String_Split[0].toString()]]);
-            else if (isNotBlank(itemValues[0][5]))
+                new Date().getTime(), itemValues[5] + '\n' + quantity_String_Split[1], itemValues[6] + '\n' + quantity_String_Split[0].toString()]]);
+            else if (isNotBlank(itemValues[5]))
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[0], '\'' + String(quantity_String_Split[0]),
-                new Date().getTime(), itemValues[0][5] + '\n' + quantity_String_Split[1], quantity_String_Split[0].toString()]]);
-            else if (isNotBlank(itemValues[0][6]))
+                new Date().getTime(), itemValues[5] + '\n' + quantity_String_Split[1], quantity_String_Split[0].toString()]]);
+            else if (isNotBlank(itemValues[6]))
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[0], '\'' + String(quantity_String_Split[0]),
-                new Date().getTime(), quantity_String_Split[1], itemValues[0][6] + '\n' + quantity_String_Split[0].toString()]]);
+                new Date().getTime(), quantity_String_Split[1], itemValues[6] + '\n' + quantity_String_Split[0].toString()]]);
             else
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[0], '\'' + String(quantity_String_Split[0]),
                 new Date().getTime(), quantity_String_Split[1], quantity_String_Split[0].toString()]]);
 
             formatCountsPage(manualCountsPage, row, 1, 7)
             sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas added to the Counts page at line :\n' + item[2] 
+                                                            + '\nCurrent inFlow Location(s) :\n' + item[4]
                                                             + '\nCurrent Manual Count :\n' + quantity_String_Split[0],
                                                             '']]);
           }
@@ -1312,52 +1402,105 @@ function manualScan(e, spreadsheet, sheet)
 
           if (item[1].split(' ')[0] === 'was') // The item was already on the Counts page
           {
-            const range = manualCountsPage.getRange(item[2], 3, 1, 5);
-            const itemValues = range.getValues()
-            const updatedCount = Number(itemValues[0][0]) + Number(quantity_String_Split[1]);
-            const countedSince = getCountedSinceString(itemValues[0][2])
-            const runningSum = (isNotBlank(itemValues[0][1])) ? ((Math.sign(quantity_String_Split[1]) === 1 || Math.sign(quantity_String_Split[1]) === 0)  ? 
-                                                                  String(itemValues[0][1]) + ' \+ ' + String(   quantity_String_Split[1])  : 
-                                                                  String(itemValues[0][1]) + ' \- ' + String(-1*quantity_String_Split[1])) :
-                                                                    ((isNotBlank(itemValues[0][0])) ? 
-                                                                      String(itemValues[0][0]) + ' \+ ' + String(quantity_String_Split[1]) : 
-                                                                      String(quantity_String_Split[1]));
+            if (Number(quantity_String_Split[1]) < 0)
+            {
+              const range = manualCountsPage.getRange(item[2], 3, 1, 5);
+              const itemValues = range.getValues()[0]
+              const updatedCount = Number(itemValues[0]) + Number(quantity_String_Split[1]);
+              const countedSince = getCountedSinceString(itemValues[2])
+              const runningSum_Split = itemValues[1].split(' + ').map(location => location.split(': '))
+              const idx = runningSum_Split.findIndex(loc => loc[0] == quantity_String_Split[0])
 
-            if (isNotBlank(itemValues[0][3]) && isNotBlank(itemValues[0][4]))
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                itemValues[0][3] + '\n' + quantity_String_Split[0], itemValues[0][4] + '\n' + quantity_String_Split[1].toString()]]);
-            else if (isNotBlank(itemValues[0][3]))
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                itemValues[0][3] + '\n' + quantity_String_Split[0], quantity_String_Split[1].toString()]]);
-            else if (isNotBlank(itemValues[0][4]))
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                quantity_String_Split[0], itemValues[0][4] + '\n' + quantity_String_Split[1].toString()]]);
+              if (idx !== -1)
+              {
+                runningSum_Split[idx][1] = runningSum_Split[idx][1] + quantity_String_Split[1]
+                var runningSum = runningSum_Split.map(u => u.join(': ')).join(' + ')
+                const quantity_Split = itemValues[4].split('\n')
+                quantity_Split[idx] = Number(quantity_Split[idx]) + Number(quantity_String_Split[1])
+                itemValues[4] = quantity_Split.join('\n')
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3], itemValues[4]]])
+              }
+              else
+              {
+                var runningSum = (isNotBlank(itemValues[1])) ? ((Math.sign(quantity_String_Split[1]) === 1 || Math.sign(quantity_String_Split[1]) === 0)  ? 
+                                                                    String(itemValues[1]) + ' \+ ' + quantity_String_Split[0] + ': ' + String(   quantity_String_Split[1])  : 
+                                                                    String(itemValues[1]) + ' \- ' + quantity_String_Split[0] + ': ' + String(-1*quantity_String_Split[1])) :
+                                                                      ((isNotBlank(itemValues[0])) ? 
+                                                                        String(itemValues[0]) + ' \+ ' + quantity_String_Split[0] + ': ' + String(quantity_String_Split[1]) : 
+                                                                        quantity_String_Split[0] + ': ' + String(quantity_String_Split[1]));
+
+                if (isNotBlank(itemValues[3]) && isNotBlank(itemValues[4]))
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3] + '\n' + quantity_String_Split[0], itemValues[4] + '\n' + quantity_String_Split[1].toString()]]);
+                else if (isNotBlank(itemValues[3]))
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3] + '\n' + quantity_String_Split[0], quantity_String_Split[1].toString()]]);
+                else if (isNotBlank(itemValues[4]))
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    quantity_String_Split[0], itemValues[4] + '\n' + quantity_String_Split[1].toString()]]);
+                else
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    quantity_String_Split[0], quantity_String_Split[1].toString()]]);
+              }
+
+              sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
+                                                              + '\nCurrent inFlow Location(s) :\n' + item[4]
+                                                              + '\nCurrent Manual Count :\n' + updatedCount 
+                                                              + '\nCurrent Running Sum :\n' + runningSum
+                                                              + '\nLast Counted :\n' + countedSince,
+                                                              '']]);
+            }
             else
-              range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                quantity_String_Split[0], quantity_String_Split[1].toString()]]);
+            {
+              const range = manualCountsPage.getRange(item[2], 3, 1, 5);
+              const itemValues = range.getValues()[0]
+              const updatedCount = Number(itemValues[0]) + Number(quantity_String_Split[1]);
+              const countedSince = getCountedSinceString(itemValues[2])
+              const runningSum = (isNotBlank(itemValues[1])) ? ((Math.sign(quantity_String_Split[1]) === 1 || Math.sign(quantity_String_Split[1]) === 0)  ? 
+                                                                    String(itemValues[1]) + ' \+ ' + quantity_String_Split[0] + ': ' + String(   quantity_String_Split[1])  : 
+                                                                    String(itemValues[1]) + ' \- ' + quantity_String_Split[0] + ': ' + String(-1*quantity_String_Split[1])) :
+                                                                      ((isNotBlank(itemValues[0])) ? 
+                                                                        String(itemValues[0]) + ' \+ ' + quantity_String_Split[0] + ': ' + String(quantity_String_Split[1]) : 
+                                                                        quantity_String_Split[0] + ': ' + String(quantity_String_Split[1]));
 
-            sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
-                                                            + '\nCurrent Manual Count :\n' + updatedCount 
-                                                            + '\nCurrent Running Sum :\n' + runningSum
-                                                            + '\nLast Counted :\n' + countedSince,
-                                                            '']]);
+              if (isNotBlank(itemValues[3]) && isNotBlank(itemValues[4]))
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  itemValues[3] + '\n' + quantity_String_Split[0], itemValues[4] + '\n' + quantity_String_Split[1].toString()]]);
+              else if (isNotBlank(itemValues[3]))
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  itemValues[3] + '\n' + quantity_String_Split[0], quantity_String_Split[1].toString()]]);
+              else if (isNotBlank(itemValues[4]))
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  quantity_String_Split[0], itemValues[4] + '\n' + quantity_String_Split[1].toString()]]);
+              else
+                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                  quantity_String_Split[0], quantity_String_Split[1].toString()]]);
+
+              sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
+                                                              + '\nCurrent inFlow Location(s) :\n' + item[4]
+                                                              + '\nCurrent Manual Count :\n' + updatedCount 
+                                                              + '\nCurrent Running Sum :\n' + runningSum
+                                                              + '\nLast Counted :\n' + countedSince,
+                                                              '']]);
+            }
           }
           else
           {
             const lastRow = manualCountsPage.getLastRow();
             const row = lastRow + 1;
             const range = manualCountsPage.getRange(row, 1, 1, 7)
-            const itemValues = range.getValues()
+            const itemValues = range.getValues()[0]
 
-            if (isNotBlank(itemValues[0][5]) && isNotBlank(itemValues[0][6]))
+            if (isNotBlank(itemValues[5]) && isNotBlank(itemValues[6]))
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[1], '\'' + String(quantity_String_Split[1]),
-                new Date().getTime(), itemValues[0][5] + '\n' + quantity_String_Split[0], itemValues[0][6] + '\n' + quantity_String_Split[1].toString()]]);
-            else if (isNotBlank(itemValues[0][5]))
+                new Date().getTime(), itemValues[5] + '\n' + quantity_String_Split[0], itemValues[6] + '\n' + quantity_String_Split[1].toString()]]);
+            else if (isNotBlank(itemValues[5]))
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[1], '\'' + String(quantity_String_Split[1]),
-                new Date().getTime(), itemValues[0][5] + '\n' + quantity_String_Split[0], quantity_String_Split[1].toString()]]);
-            else if (isNotBlank(itemValues[0][6]))
+                new Date().getTime(), itemValues[5] + '\n' + quantity_String_Split[0], quantity_String_Split[1].toString()]]);
+            else if (isNotBlank(itemValues[6]))
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[1], '\'' + String(quantity_String_Split[1]),
-                new Date().getTime(), quantity_String_Split[0], itemValues[0][6] + '\n' + quantity_String_Split[1].toString()]]);
+                new Date().getTime(), quantity_String_Split[0], itemValues[6] + '\n' + quantity_String_Split[1].toString()]]);
             else
               range.setNumberFormats([['@', '@', '#.#', '@', '#', '@', '@']]).setValues([[item[0], '', quantity_String_Split[1], '\'' + String(quantity_String_Split[1]),
                 new Date().getTime(), quantity_String_Split[0], quantity_String_Split[1].toString()]]);
@@ -1380,17 +1523,18 @@ function manualScan(e, spreadsheet, sheet)
           if (item[1].split(' ')[0] === 'was') // The item was already on the Counts page
           {
             const range = manualCountsPage.getRange(item[2], 3, 1, 3);
-            const itemValues = range.getValues()
-            const updatedCount = Number(itemValues[0][0]) + quantity;
-            const countedSince = getCountedSinceString(itemValues[0][2])
-            const runningSum = (isNotBlank(itemValues[0][1])) ? ((Math.sign(quantity) === 1 || Math.sign(quantity) === 0)  ? 
-                                                                  String(itemValues[0][1]) + ' \+ ' + String(   quantity)  : 
-                                                                  String(itemValues[0][1]) + ' \- ' + String(-1*quantity)) :
-                                                                    ((isNotBlank(itemValues[0][0])) ? 
-                                                                      String(itemValues[0][0]) + ' \+ ' + String(quantity) : 
+            const itemValues = range.getValues()[0]
+            const updatedCount = Number(itemValues[0]) + quantity;
+            const countedSince = getCountedSinceString(itemValues[2])
+            const runningSum = (isNotBlank(itemValues[1])) ? ((Math.sign(quantity) === 1 || Math.sign(quantity) === 0)  ? 
+                                                                  String(itemValues[1]) + ' \+ ' + String(   quantity)  : 
+                                                                  String(itemValues[1]) + ' \- ' + String(-1*quantity)) :
+                                                                    ((isNotBlank(itemValues[0])) ? 
+                                                                      String(itemValues[0]) + ' \+ ' + String(quantity) : 
                                                                       String(quantity));
             range.setNumberFormats([['#.#', '@', '#']]).setValues([[updatedCount, runningSum, new Date().getTime()]])
             sheet.getRange(1, 1, 1, 2).setValues([[item[0]  + '\nwas found on the Counts page at line :\n' + item[2] 
+                                                            + '\nCurrent inFlow Location(s) :\n' + item[4]
                                                             + '\nCurrent Manual Count :\n' + updatedCount 
                                                             + '\nCurrent Running Sum :\n' + runningSum
                                                             + '\nLast Counted :\n' + countedSince,
@@ -1455,13 +1599,13 @@ function populateManualScan(ss, sheet, rowNum, newItemDescription)
   else // There are existing items on the manual counts page
   {
     const row = lastRow + 1;
-    const manualCountsValues = manualCountsPage.getSheetValues(4, 1, row - 4, 4);
+    const manualCountsValues = manualCountsPage.getSheetValues(3, 1, row - 3, 4);
 
     for (var j = 0; j < manualCountsValues.length; j++) // Loop through the manual counts page
     {
       if (manualCountsValues[j][0] === itemValues[0]) // The description matches
       {
-        barcodeInputRange.setValue(itemValues[0]  + '\nwas found on the Counts page at line :\n' + (j + 4) 
+        barcodeInputRange.setValue(itemValues[0]  + '\nwas found on the Counts page at line :\n' + (j + 3) 
                                                   + '\nCurrent Manual Count :\n' + manualCountsValues[j][2] 
                                                   + '\nCurrent Running Sum :\n' + manualCountsValues[j][3]);
         break; // Item was found on the manual counts page, therefore stop searching
