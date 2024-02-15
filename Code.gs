@@ -343,7 +343,7 @@ function copySelectedValues(sheet, isTransfer)
         var range = sheet.getRange(2, 1);
         var orderCounter = Number(range.getValue()) + 1;
         var items = itemValues.map(v => ['newSalesOrder_' + orderCounter, 'Richmond PNT', v[0], '', '', '', v[2]])
-        var colours = items.map(_ => ['white', 'white', 'white', 'white', 'white', 'white', 'white'])
+        var colours = items.map(_ => ['white', 'white', 'white', 'white', 'white', 'white', '#d9d9d9'])
         range.setValue(orderCounter)
         break;
       case 'Stock Levels':
@@ -430,6 +430,7 @@ function createTriggers()
   ScriptApp.newTrigger('installed_onEdit').forSpreadsheet(spreadsheet).onEdit().create()
   ScriptApp.newTrigger('installed_onOpen').forSpreadsheet(spreadsheet).onOpen().create()
   ScriptApp.newTrigger('updateUPCs').timeBased().atHour(9).everyDays(1).create()
+  ScriptApp.newTrigger('updateStockLevels').timeBased().atHour(9).everyDays(1).create()
 }
 
 /**
@@ -1163,7 +1164,21 @@ function manualScan(e, spreadsheet, sheet)
                 l = m;
               else // UPC code was found!
               {
-                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0];
+                const splitDescription = description.split(' - ');
+                const sku = splitDescription.pop().toString().toUpperCase();
+                const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+
+                if (inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).findIndex(description => description.includes(sku)) === -1) // Check if the item is in inFlow
+                {
+                  const newItemSheet = SpreadsheetApp.getActive().getSheetByName('New Items')
+                  splitDescription.pop();
+                  splitDescription.pop();
+                  splitDescription.pop();
+                  newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
+                  spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
+                }
+
                 barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
                 break; // Item was found, therefore stop searching
               }
@@ -1203,7 +1218,19 @@ function manualScan(e, spreadsheet, sheet)
                 }
 
                 if (j === manualCountsValues.length) // Item was not found on the Counts page
+                {
+                  if (inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).findIndex(description => description.includes(sku)) === -1) // Check if the item is in inFlow
+                  {
+                    const newItemSheet = SpreadsheetApp.getActive().getSheetByName('New Items')
+                    splitDescription.pop();
+                    splitDescription.pop();
+                    splitDescription.pop();
+                    newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
+                    spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
+                  }
+
                   barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + row);
+                }
 
                 break; // Item was found, therefore stop searching
               }
@@ -1855,11 +1882,11 @@ function search(e, spreadsheet, sheet)
                       l = m;
                     else // UPC code was found!
                     {
-                      const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                      const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0].split(' - ').pop().toString().toUpperCase()
 
                       for (var i = 0; i < data.length; i++)
                       {
-                        if (description === data[i][0])
+                        if (description === data[i][0].split(' - ').pop().toString().toUpperCase())
                         {
                           UoM = data[i][0].toString().split(' - ')
                           UoM = (UoM.length >= 5) ? UoM[UoM.length - 2] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
@@ -2503,7 +2530,7 @@ function search(e, spreadsheet, sheet)
               else // Regular search through the descriptions
               {
                 if (/^\d+$/.test(searches[0][0]) && (isUPC_A(searches[0][0]) || isEAN_13(searches[0][0])) && numSearches === 1 && searches[0].length == 1) // Check if a barcode was scanned
-                {
+                {                
                   const upcDatabaseSheet = spreadsheet.getSheetByName('UPC Database')
                   const upcs = upcDatabaseSheet.getSheetValues(1, 1, upcDatabaseSheet.getLastRow(), 1)
                   var l = 0; // Lower-bound
@@ -2519,11 +2546,11 @@ function search(e, spreadsheet, sheet)
                       l = m;
                     else // UPC code was found!
                     {
-                      const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0]
+                      const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0].split(' - ').pop().toString().toUpperCase();
 
                       for (var i = 0; i < data.length; i++)
                       {
-                        if (description === data[i][0])
+                        if (description === data[i][0].split(' - ').pop().toString().toUpperCase())
                         {
                           UoM = data[i][0].toString().split(' - ')
                           UoM = (UoM.length >= 5) ? UoM[UoM.length - 2] : ''; // If the items is in Adagio pull out the unit of measure and put it in the first columm
