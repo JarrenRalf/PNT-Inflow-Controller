@@ -1279,7 +1279,7 @@ function manualScan(e, spreadsheet, sheet)
                       splitDescription.pop();
                       newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
                       spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
-                      barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
+                      barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + (lastRow + 1));
                     }
 
                     break; // Item was found on the Counts page, therefore stop searching
@@ -1295,7 +1295,7 @@ function manualScan(e, spreadsheet, sheet)
                   const item = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).find(description => description[0].includes(sku));
 
                   if (item !== undefined) // Item is in inFlow
-                    barcodeInputRange.setValue(item[0] + '\nwill be added to the Counts page at line :\n' + 3);
+                    barcodeInputRange.setValue(item[0] + '\nwill be added to the Counts page at line :\n' + (lastRow + 1));
                   else // Item was not found in inFlow
                   {
                     const newItemSheet = SpreadsheetApp.getActive().getSheetByName('New Items')
@@ -1304,7 +1304,7 @@ function manualScan(e, spreadsheet, sheet)
                     splitDescription.pop();
                     newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
                     spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
-                    barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
+                    barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + (lastRow + 1));
                   }
                 }
 
