@@ -431,6 +431,7 @@ function createTriggers()
   ScriptApp.newTrigger('installed_onOpen').forSpreadsheet(spreadsheet).onOpen().create()
   ScriptApp.newTrigger('updateUPCs').timeBased().atHour(9).everyDays(1).create()
   ScriptApp.newTrigger('updateStockLevels').timeBased().atHour(9).everyDays(1).create()
+  ScriptApp.newTrigger('findDuplicateSkus').timeBased().atHour(10).everyDays(1).create()
 }
 
 /**
@@ -839,6 +840,55 @@ function downloadInflowStockLevels_fromCountsSheet()
 }
 
 /**
+ * This function checks the Inventory page and looks for items that have a duplicate SKU.
+ * 
+ * @author Jarren Ralf
+ */
+function findDuplicateSkus()
+{
+  const spreadsheet = SpreadsheetApp.getActive();
+  const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+  const inventory = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 4);
+  var uniqueSKUs = [], duplicateList = [], backgrounds = [], items = [], sku, index, splitDescription, nPrevious = 0, nCurrent = 0, n = 0;
+
+  for (var i = 0; i < inventory.length; i++)
+  {
+    splitDescription = inventory[i][0].split(' - ');
+
+    if (splitDescription.length > 4)
+    {
+      sku = inventory[i][0].split(' - ').pop().toString().toUpperCase();
+      index = uniqueSKUs.findIndex(itemNum => itemNum[0] == sku);
+
+      if (index !== -1)
+        uniqueSKUs[index][1].push(i); // This is a multiple occurence for this sku, add its position in the inventory array to the list
+      else
+        uniqueSKUs.push([sku, [i]]); // This is the first occurence of the sku, add it to the list with its position in the inventory array
+    }
+  }
+
+  uniqueSKUs.filter(multiLocation => multiLocation[1].length > 2).map(item => {
+    nPrevious = duplicateList.length;
+    items = item[1].map(j => inventory[j]);
+
+    if (uniqByKeepLast(items, it => it[0]).length > 1) // If the duplicates don't have exactly the same description (i.e. not just an item in multiple locations)
+    {
+      nCurrent = duplicateList.push(...item[1].map(j => inventory[j]));
+
+      // Alternate background colour to see groupings more clearly
+      backgrounds.push(...(n % 2 !== 0) ? new Array(nCurrent - nPrevious).fill(['#fff2cc', '#fff2cc', '#fff2cc', '#fff2cc']) : new Array(nCurrent - nPrevious).fill(['white', 'white', 'white', 'white'])); 
+      n++;
+    }
+  });
+
+  duplicateList.unshift(['Item', 'Location', 'Quantity', 'Serial']);
+  backgrounds.unshift(['#f0f0f0', '#f0f0f0', '#f0f0f0', '#f0f0f0']);
+
+  spreadsheet.getSheetByName('Possible Duplicates').clear().getRange(1, 1, duplicateList.length, 4).setBackgrounds(backgrounds).setValues(duplicateList)
+    .offset(0, 0, 1, 4).setFontWeight('bold').setHorizontalAlignment('center');
+}
+
+/**
  * Apply the proper formatting to the Counts page.
  *
  * @param {Sheet}   sheet  : The Counts sheet that needs a formatting adjustment
@@ -1168,8 +1218,11 @@ function manualScan(e, spreadsheet, sheet)
                 const splitDescription = description.split(' - ');
                 const sku = splitDescription.pop().toString().toUpperCase();
                 const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+                const item = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).find(description => description[0].includes(sku));
 
-                if (inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).findIndex(description => description.includes(sku)) === -1) // Check if the item is in inFlow
+                if (item !== undefined) // Item is in inFlow
+                  barcodeInputRange.setValue(item[0] + '\nwill be added to the Counts page at line :\n' + 3);
+                else // Item was not found in inFlow
                 {
                   const newItemSheet = SpreadsheetApp.getActive().getSheetByName('New Items')
                   splitDescription.pop();
@@ -1177,9 +1230,9 @@ function manualScan(e, spreadsheet, sheet)
                   splitDescription.pop();
                   newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
                   spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
+                  barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
                 }
 
-                barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
                 break; // Item was found, therefore stop searching
               }
                 
@@ -1219,7 +1272,15 @@ function manualScan(e, spreadsheet, sheet)
 
                 if (j === manualCountsValues.length) // Item was not found on the Counts page
                 {
-                  if (inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).findIndex(description => description.includes(sku)) === -1) // Check if the item is in inFlow
+                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0];
+                  const splitDescription = description.split(' - ');
+                  const sku = splitDescription.pop().toString().toUpperCase();
+                  const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+                  const item = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).find(description => description[0].includes(sku));
+
+                  if (item !== undefined) // Item is in inFlow
+                    barcodeInputRange.setValue(item[0] + '\nwill be added to the Counts page at line :\n' + 3);
+                  else // Item was not found in inFlow
                   {
                     const newItemSheet = SpreadsheetApp.getActive().getSheetByName('New Items')
                     splitDescription.pop();
@@ -1227,9 +1288,8 @@ function manualScan(e, spreadsheet, sheet)
                     splitDescription.pop();
                     newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
                     spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
+                    barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
                   }
-
-                  barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + row);
                 }
 
                 break; // Item was found, therefore stop searching
@@ -3058,6 +3118,17 @@ function stockAdjustment()
 function stockTransfer()
 {
   copySelectedValues(SpreadsheetApp.getActive().getSheetByName('Stock Levels'), true)
+}
+
+/**
+ * This function removes duplicate items from a multi-array.
+ */
+function uniqByKeepLast(a, key) {
+  return [
+      ...new Map(
+          a.map(x => [key(x), x])
+      ).values()
+  ]
 }
 
 /**
