@@ -1229,7 +1229,7 @@ function manualScan(e, spreadsheet, sheet)
                   splitDescription.pop();
                   splitDescription.pop();
                   newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
-                  spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
+                  spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 10)
                   barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + 3);
                 }
 
@@ -1260,27 +1260,15 @@ function manualScan(e, spreadsheet, sheet)
 
                 for (var j = 0; j < manualCountsValues.length; j++) // Loop through the Counts page
                 {
-                  if (manualCountsValues[j][0].split(' - ').pop().toString().toUpperCase() === sku) // The description matches
+                  if (manualCountsValues[j][0].split(' - ').pop().toString().toUpperCase() === sku) // The sku matches
                   {
                     const countedSinceString = (isNotBlank(manualCountsValues[j][4])) ? '\nLast Counted :\n' + getCountedSinceString(manualCountsValues[j][4]) : '';
                     
-                    if (item !== undefined) // Item is in inFlow
-                    {
-                      barcodeInputRange.setValue(item[0]  + '\nwas found on the Counts page at line :\n' + (j + 3) 
-                                                          + '\nManual Count :\n' + manualCountsValues[j][2] 
-                                                          + '\nRunning Sum :\n' + manualCountsValues[j][3]
-                                                          + countedSinceString);
-                    }
-                    else // Item was not found in inFlow
-                    {
-                      const newItemSheet = SpreadsheetApp.getActive().getSheetByName('New Items')
-                      splitDescription.pop();
-                      splitDescription.pop();
-                      splitDescription.pop();
-                      newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
-                      spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
-                      barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + (lastRow + 1));
-                    }
+                    barcodeInputRange.setValue((item !== undefined) ? item[0] : description // If the item is in  inflow, use the description that inflow uses, otherwise grab the current Adagio description
+                      + '\nwas found on the Counts page at line :\n' + (j + 3) 
+                      + '\nManual Count :\n' + manualCountsValues[j][2] 
+                      + '\nRunning Sum :\n' + manualCountsValues[j][3]
+                      + countedSinceString);
 
                     break; // Item was found on the Counts page, therefore stop searching
                   }
@@ -1288,12 +1276,6 @@ function manualScan(e, spreadsheet, sheet)
 
                 if (j === manualCountsValues.length) // Item was not found on the Counts page
                 {
-                  const description = upcDatabaseSheet.getSheetValues(m + 1, 2, 1, 1)[0][0];
-                  const splitDescription = description.split(' - ');
-                  const sku = splitDescription.pop().toString().toUpperCase();
-                  const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
-                  const item = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).find(description => description[0].includes(sku));
-
                   if (item !== undefined) // Item is in inFlow
                     barcodeInputRange.setValue(item[0] + '\nwill be added to the Counts page at line :\n' + (lastRow + 1));
                   else // Item was not found in inFlow
@@ -1303,7 +1285,7 @@ function manualScan(e, spreadsheet, sheet)
                     splitDescription.pop();
                     splitDescription.pop();
                     newItemSheet.getRange(newItemSheet.getLastRow() + 1, 1, 1, 4).setNumberFormat('@').setValues([[description, '', splitDescription.join(' - '), -1]]).activate(); 
-                    spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 120)
+                    spreadsheet.toast('Item has been added to New Items sheet', 'Item Not in inFlow', 10)
                     barcodeInputRange.setValue(description + '\nwill be added to the Counts page at line :\n' + (lastRow + 1));
                   }
                 }
