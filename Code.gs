@@ -1264,7 +1264,8 @@ function manualScan(e, spreadsheet, sheet)
                   {
                     const countedSinceString = (isNotBlank(manualCountsValues[j][4])) ? '\nLast Counted :\n' + getCountedSinceString(manualCountsValues[j][4]) : '';
                     
-                    barcodeInputRange.setValue((item !== undefined) ? item[0] : description // If the item is in  inflow, use the description that inflow uses, otherwise grab the current Adagio description
+                    // If the item is in  inflow, use the description that inflow uses, otherwise grab the current Adagio description
+                    barcodeInputRange.setValue(((item !== undefined) ? item[0] : description)
                       + '\nwas found on the Counts page at line :\n' + (j + 3) 
                       + '\nManual Count :\n' + manualCountsValues[j][2] 
                       + '\nRunning Sum :\n' + manualCountsValues[j][3]
