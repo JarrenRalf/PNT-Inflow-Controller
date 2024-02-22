@@ -25,7 +25,7 @@ function doGet(e)
       return downloadInflowSalesOrder()
     else if (inFlowImportType === 'StockLevels')
       return downloadInflowStockLevels()
-      else if (inFlowImportType === 'StockLevels_fromCountsSheet')
+    else if (inFlowImportType === 'StockLevels_fromCountsSheet')
       return downloadInflowStockLevels_fromCountsSheet()
   }
 }
@@ -153,7 +153,7 @@ function addToNewItems_ButtonPressed()
                           ['#3c78d8', '#3c78d8', '#3c78d8', '#3c78d8', '#3c78d8']]).setValues(vals)
     checkBoxRange.check()
 
-    const searchesOrNot = sheet.getRange(1, 2, 1, 2).clearFormat()                                    // Clear the formatting of the range of the search box
+    const searchesOrNot = sheet.getRange(1, 2, 1, 2).clearFormat()                                        // Clear the formatting of the range of the search box
           .setBorder(true, true, true, true, null, null, 'white', SpreadsheetApp.BorderStyle.SOLID_THICK) // Set the border
           .setFontFamily("Arial").setFontColor("black").setFontWeight("bold").setFontSize(14)             // Set the various font parameters
           .setHorizontalAlignment("center").setVerticalAlignment("middle")                                // Set the alignment
@@ -3305,7 +3305,7 @@ function warning(e, sheet, sheetName)
                 newCountDataRange.setValues([[Math.round(e.value).toString(), new Date().getTime()]]);
             }
           }
-          else if (valueSplit[0].toLowerCase() === 'a' || valueSplit[0].toLowerCase() === 'add') // The number is preceded by the letter 'a' and a space, in order to trigger an "add" operation
+          else if (valueSplit[0].toLowerCase() === 'a' || valueSplit[0].toLowerCase() === 'aaa' || valueSplit[0].toLowerCase() === 'add') // The number is preceded by the letter 'a' and a space, in order to trigger an "add" operation
           {
             if (valueSplit.length === 3) // An add event with an inflow location
             { 
@@ -3593,49 +3593,35 @@ function warning(e, sheet, sheetName)
               }
             }
           }
+          else if (e.value.toLowerCase() === 'clear')
+          {
+            sheet.getRange(row, 3, 1, 5).setValues([['', '', '', '', '']]); // Clear the running sum and last counted time
+            e.source.toast('Scanning and Inflow Data has been cleared for ' + sheet.getSheetValues(row, 1, 1, 1)[0][0].split(' - ', 1)[0])
+          }
           else if (isNumber(valueSplit[0])) // The first split value is a number and the other is an inflow location
           {
             valueSplit[1] = valueSplit[1].toUpperCase()
 
             if (isNumber(e.oldValue))
             {
-              const difference  = valueSplit[0] - e.oldValue;
               const newCountDataRange = sheet.getRange(row, 3, 1, 5);
               var newCountValues = newCountDataRange.getValues();
 
               if (newCountValues[0][1] === '')
                 newCountValues[0][1] = Math.round(e.oldValue).toString();
 
-              if (difference > 0)
-              {
-                if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[1], difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[1], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[1], difference.toString()]]);
-              }
+              if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
+                newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
+                  newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
+              else if (isNotBlank(newCountValues[0][3]))
+                newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
+                  newCountValues[0][3] + '\n' + valueSplit[1], valueSplit[0].toString()]]);
+              else if (isNotBlank(newCountValues[0][4]))
+                newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
+                  valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
               else
-              { 
-                if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[1], difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[1], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[1], difference.toString()]]);
-              }
+                newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
+                  valueSplit[1], valueSplit[0].toString()]]);
             }
             else // Old value is not a number
             {
@@ -3645,31 +3631,31 @@ function warning(e, sheet, sheetName)
               if (isNotBlank(newCountValues[0][1]))
               {
                 if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
                 else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[1], valueSplit[0].toString()]]);
                 else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
                 else
-                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], newCountValues[0][1] + ' + ' + valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     valueSplit[1], valueSplit[0].toString()]]);
               }
               else
               {
                 if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
                 else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[0], Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[1], valueSplit[0].toString()]]);
                 else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[0], Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
                 else
-                  newCountDataRange.setValues([[valueSplit[0], Math.round(valueSplit[0]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[0], valueSplit[1] + ': ' + Math.round(valueSplit[0]).toString(), new Date().getTime(), 
                     valueSplit[1], valueSplit[0].toString()]]);
               }
             }
@@ -3680,43 +3666,24 @@ function warning(e, sheet, sheetName)
 
             if (isNumber(e.oldValue))
             {
-              const difference  = valueSplit[1] - e.oldValue;
               const newCountDataRange = sheet.getRange(row, 3, 1, 5);
               var newCountValues = newCountDataRange.getValues();
 
               if (newCountValues[0][1] === '')
                 newCountValues[0][1] = Math.round(e.oldValue).toString();
 
-              if (difference > 0)
-              {
-                if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[0], difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[0], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' + ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[0], difference.toString()]]);
-              }
+              if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
+                newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
+                  newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
+              else if (isNotBlank(newCountValues[0][3]))
+                newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
+                  newCountValues[0][3] + '\n' + valueSplit[0], valueSplit[1].toString()]]);
+              else if (isNotBlank(newCountValues[0][4]))
+                newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
+                  valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
               else
-              { 
-                if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    newCountValues[0][3] + '\n' + valueSplit[0], difference.toString()]]);
-                else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[0], newCountValues[0][4] + '\n' + difference.toString()]]);
-                else
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1].toString() + ' - ' + difference.toString(), new Date().getTime(), 
-                    valueSplit[0], difference.toString()]]);
-              }
+                newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
+                  valueSplit[0], valueSplit[1].toString()]]);
             }
             else // Old value is not a number
             {
@@ -3726,31 +3693,31 @@ function warning(e, sheet, sheetName)
               if (isNotBlank(newCountValues[0][1]))
               {
                 if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
                 else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[0], valueSplit[1].toString()]]);
                 else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
                 else
-                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], newCountValues[0][1] + ' + ' + valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     valueSplit[0], valueSplit[1].toString()]]);
               }
               else
               {
                 if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
                 else if (isNotBlank(newCountValues[0][3]))
-                  newCountDataRange.setValues([[valueSplit[1], Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     newCountValues[0][3] + '\n' + valueSplit[0], valueSplit[1].toString()]]);
                 else if (isNotBlank(newCountValues[0][4]))
-                  newCountDataRange.setValues([[valueSplit[1], Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
                 else
-                  newCountDataRange.setValues([[valueSplit[1], Math.round(valueSplit[1]).toString(), new Date().getTime(), 
+                  newCountDataRange.setValues([[valueSplit[1], valueSplit[0] + ': ' + Math.round(valueSplit[1]).toString(), new Date().getTime(), 
                     valueSplit[0], valueSplit[1].toString()]]);
               }
             }
@@ -3772,7 +3739,10 @@ function warning(e, sheet, sheetName)
           }
         }
         else // New value IS blank
+        {
           sheet.getRange(row, 4, 1, 4).setValues([['', '', '', '']]); // Clear the running sum and last counted time
+          e.source.toast('Scanning and Inflow Data has been cleared for ' + sheet.getSheetValues(row, 1, 1, 1)[0][0].split(' - ', 1)[0])
+        }  
       }
       else
       {
@@ -3783,9 +3753,9 @@ function warning(e, sheet, sheetName)
           const inflowData = e.value.split(' ');
 
           if (isNumber(inflowData[0]))
-            sheet.getRange(row, 3, 1, 5).setNumberFormats([['#', '@', '#', '@', '#']]).setValues([[inflowData[0], inflowData[0], new Date().getTime(), inflowData[1].toUpperCase(), inflowData[0]]])
+            sheet.getRange(row, 3, 1, 5).setNumberFormats([['#', '@', '#', '@', '#']]).setValues([[inflowData[0], inflowData[1].toUpperCase() + ': ' + inflowData[0], new Date().getTime(), inflowData[1].toUpperCase(), inflowData[0]]])
           else if (isNumber(inflowData[1]))
-            sheet.getRange(row, 3, 1, 5).setNumberFormats([['#', '@', '#', '@', '#']]).setValues([[inflowData[1], inflowData[1], new Date().getTime(), inflowData[0].toUpperCase(), inflowData[1]]])
+            sheet.getRange(row, 3, 1, 5).setNumberFormats([['#', '@', '#', '@', '#']]).setValues([[inflowData[1], inflowData[0].toUpperCase() + ': ' + inflowData[1], new Date().getTime(), inflowData[0].toUpperCase(), inflowData[1]]])
           else
             SpreadsheetApp.getUi().alert("The quantity you entered is not a number.");
         }
