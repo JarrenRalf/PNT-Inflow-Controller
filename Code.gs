@@ -1376,7 +1376,7 @@ function manualScan(e, spreadsheet, sheet)
 
           if (item[1].split(' ')[0] === 'was') // The item was already on the Counts page
           {
-            if (Number(quantity_String_Split[0]) < 0)
+            if (Number(quantity_String_Split[0]) < 0) // If the quantity entered was a negative number
             {
               const range = manualCountsPage.getRange(item[2], 3, 1, 5);
               const itemValues = range.getValues()[0]
@@ -1438,8 +1438,22 @@ function manualScan(e, spreadsheet, sheet)
                                                                         quantity_String_Split[1] + ': ' + String(quantity_String_Split[0]));
 
               if (isNotBlank(itemValues[3]) && isNotBlank(itemValues[4]))
-                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                  itemValues[3] + '\n' + quantity_String_Split[1], itemValues[4] + '\n' + quantity_String_Split[0].toString()]]);
+              {
+                const inFlowLocations = itemValues[3].split('\n');
+                const locationIndex = inFlowLocations.findIndex(loc => loc === quantity_String_Split[1])
+
+                if (locationIndex !== -1)
+                {
+                  const inFlowQuantities = itemValues[4].split('\n');
+                  inFlowQuantities[locationIndex] = Number(inFlowQuantities[locationIndex]) + Number(quantity_String_Split[0]);
+
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    inFlowLocations.join('\n'), inFlowQuantities.join('\n')]]);
+                }
+                else
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3] + '\n' + quantity_String_Split[1], itemValues[4] + '\n' + quantity_String_Split[0].toString()]]);
+              }
               else if (isNotBlank(itemValues[3]))
                 range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
                   itemValues[3] + '\n' + quantity_String_Split[1], quantity_String_Split[0].toString()]]);
@@ -1558,8 +1572,22 @@ function manualScan(e, spreadsheet, sheet)
                                                                         quantity_String_Split[0] + ': ' + String(quantity_String_Split[1]));
 
               if (isNotBlank(itemValues[3]) && isNotBlank(itemValues[4]))
-                range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
-                  itemValues[3] + '\n' + quantity_String_Split[0], itemValues[4] + '\n' + quantity_String_Split[1].toString()]]);
+              {
+                const inFlowLocations = itemValues[3].split('\n');
+                const locationIndex = inFlowLocations.findIndex(loc => loc === quantity_String_Split[0])
+
+                if (locationIndex !== -1)
+                {
+                  const inFlowQuantities = itemValues[4].split('\n');
+                  inFlowQuantities[locationIndex] = Number(inFlowQuantities[locationIndex]) + Number(quantity_String_Split[1]);
+
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    inFlowLocations.join('\n'), inFlowQuantities.join('\n')]]);
+                }
+                else
+                  range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
+                    itemValues[3] + '\n' + quantity_String_Split[0], itemValues[4] + '\n' + quantity_String_Split[1].toString()]]);
+              }
               else if (isNotBlank(itemValues[3]))
                 range.setNumberFormats([['#.#', '@', '#', '@', '@']]).setValues([[updatedCount, runningSum, new Date().getTime(), 
                   itemValues[3] + '\n' + quantity_String_Split[0], quantity_String_Split[1].toString()]]);
@@ -3611,8 +3639,24 @@ function warning(e, sheet, sheetName)
                 newCountValues[0][1] = Math.round(e.oldValue).toString();
 
               if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
-                  newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
+              {
+                const inFlowLocations = newCountValues[0][3].split('\n');
+                const locationIndex = inFlowLocations.findIndex(loc => loc === valueSplit[1])
+
+                if (locationIndex !== -1)
+                {
+                  const inFlowQuantities = newCountValues[0][4].toString().split('\n');
+                  inFlowQuantities[locationIndex] = Number(inFlowQuantities[locationIndex]) + Number(valueSplit[0]);
+
+                  newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
+                    newCountValues[0][3], inFlowQuantities.map(l => l.toString().trim()).join('\n')]]);
+                }
+                else
+                {
+                  newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
+                    newCountValues[0][3] + '\n' + valueSplit[1], newCountValues[0][4] + '\n' + valueSplit[0].toString()]]);
+                }
+              }
               else if (isNotBlank(newCountValues[0][3]))
                 newCountDataRange.setValues([[Number(valueSplit[0]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[1] + ': ' + valueSplit[0].toString(), new Date().getTime(), 
                   newCountValues[0][3] + '\n' + valueSplit[1], valueSplit[0].toString()]]);
@@ -3673,8 +3717,24 @@ function warning(e, sheet, sheetName)
                 newCountValues[0][1] = Math.round(e.oldValue).toString();
 
               if (isNotBlank(newCountValues[0][3]) && isNotBlank(newCountValues[0][4]))
-                newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
-                  newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
+              {
+                const inFlowLocations = newCountValues[0][3].split('\n');
+                const locationIndex = inFlowLocations.findIndex(loc => loc === valueSplit[0])
+
+                if (locationIndex !== -1)
+                {
+                  const inFlowQuantities = newCountValues[0][4].toString().split('\n');
+                  inFlowQuantities[locationIndex] = Number(inFlowQuantities[locationIndex]) + Number(valueSplit[1]);
+
+                  newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
+                    newCountValues[0][3], inFlowQuantities.map(l => l.toString().trim()).join('\n')]]);
+                }
+                else
+                {
+                  newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
+                    newCountValues[0][3] + '\n' + valueSplit[0], newCountValues[0][4] + '\n' + valueSplit[1].toString()]]);
+                }
+              }
               else if (isNotBlank(newCountValues[0][3]))
                 newCountDataRange.setValues([[Number(valueSplit[1]) + Number(e.oldValue), newCountValues[0][1].toString() + ' + ' + valueSplit[0] + ': ' + valueSplit[1].toString(), new Date().getTime(), 
                   newCountValues[0][3] + '\n' + valueSplit[0], valueSplit[1].toString()]]);
