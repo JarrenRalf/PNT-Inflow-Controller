@@ -683,7 +683,7 @@ function downloadInflow(sheetName, csvHeaders, fileName, excludeCol, ...varArgs)
 
     data.map(item => {
       loc = item[5].split('\n')
-      qty = item[6].split('\n')
+      qty = item[6].toString().split('\n')
 
       if (loc.length === qty.length) // Make sure there is a location for every quantity and vice versa
         for (i = 0; i < loc.length; i++) // Loop through the number of inflow locations
@@ -978,15 +978,16 @@ function importStockLevels(values, spreadsheet, startTime)
   const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
   const productDetailsSheet = spreadsheet.getSheetByName('Product Details');
   const numRows_StockLevels = values.length;
-  var inventory = [], itemHasZeroInventory;
+  var inventory = [], itemHasZeroInventory, sku;
 
   const uniqueNumProducts = productDetailsSheet.getSheetValues(3, 1, productDetailsSheet.getLastRow() - 2, 1).map(item => {
     
+    sku = item[0].toString().split(' - ').pop().toString().toUpperCase();
     itemHasZeroInventory = true;
 
     for (var i = 1; i < numRows_StockLevels; i++)
     {
-      if (values[i][0] === item[0])
+      if (values[i][0].toString().split(' - ').pop().toString().toUpperCase() === sku)
       {
         inventory.push([values[i][0], values[i][1], values[i][4], values[i][3]])
         itemHasZeroInventory = false;
