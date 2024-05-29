@@ -2853,95 +2853,241 @@ function search(e, spreadsheet, sheet)
 
       if (values.length !== 0) // Don't run function if every value is blank, probably means the user pressed the delete key on a large selection
       {
-        const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
-        const data = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 4);
-        var someSKUsNotFound = false, skus;
+        const startTime = new Date().getTime();
+        spreadsheet.toast('Searching...')
 
-        if (values[0][0].toString().includes(' - ')) // Strip the sku from the google description
+        const functionRunTimeRange = sheet.getRange(2, 1);   // The range that will display the runtimes for the search and formatting
+        const itemSearchFullRange = sheet.getRange(4, 1, sheet.getMaxRows() - 2, 5); // The entire range of the Item Search page
+        const searchResultsDisplayRange = sheet.getRange(1, 1); // The range that will display the number of items found by the search
+        var rng  = sheet.getRange(1, 1, 3, 5);
+        var vals = rng.getValues()
+
+        if (sheet.getRange(3, 1).isChecked()) // Add One Mode
         {
-          skus = values.map(item => {
-          
-            for (var i = 0; i < data.length; i++)
-            {
-              if (data[i][0].split(' - ').pop().toString().toUpperCase() == item[0].toString().split(' - ').pop().toString().toUpperCase())
-                return [data[i][0].split(' - ')[data[i][0].split(' - ').length - 2], ...data[i]];
-            }
+          vals[0][3] = 'Add NEW item Mode: ON'
 
-            someSKUsNotFound = true;
+          rng.setBackgrounds([ ['#3c78d8', 'white',   '#3c78d8', '#3c78d8', '#3c78d8'], 
+                               ['#3c78d8', '#3c78d8', '#3c78d8', '#3c78d8', '#3c78d8'], 
+                               ['#3c78d8', '#3c78d8', '#3c78d8', '#3c78d8', '#3c78d8']]).setValues(vals)
 
-            return ['SKU Not Found:', item[0].toString().split(' - ').pop().toUpperCase(), '', '', '']
-          });
+          const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+          const inflowItems = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1);
+          const data = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString())
+          const uom = data[0].indexOf('Price Unit')
+          const fullDescription = data[0].indexOf('Item List')
+          const itemNumber = data[0].indexOf('Item #')
+          var someSKUsNotFound = false, skus;
+
+          if (values[0][0].toString().includes(' - ')) // Strip the sku from the google description
+          {
+            skus = values.map(item => {
+            
+              for (var i = 0; i < data.length; i++)
+              {
+                if (data[i][fullDescription].split(' - ').pop().toString().toUpperCase() == item[0].toString().split(' - ').pop().toString().toUpperCase())
+                {
+                  const sku = data[i][itemNumber].toString().toUpperCase()
+                  isInflow = inflowItems.find(item => item[0].toString().toUpperCase().split(' - ').pop() === sku)
+                  return [data[i][uom], data[i][fullDescription], (isInflow == null) ? 'NOT in inFlow' : '', '', ''];
+                }
+              }
+
+              someSKUsNotFound = true;
+
+              return ['SKU Not Found:', item[0].toString().split(' - ').pop().toUpperCase(), '', '', '']
+            });
+          }
+          else if (values[0][0].toString().includes('-'))
+          {
+            skus = values.map(sku => sku[0].substring(0,4) + sku[0].substring(5,9) + sku[0].substring(10)).map(item => {
+            
+              for (var i = 0; i < data.length; i++)
+              {
+                if (data[i][fullDescription].split(' - ').pop().toString().toUpperCase() == item.toString().toUpperCase())
+                {
+                  const sku = data[i][itemNumber].toString().toUpperCase()
+                  isInflow = inflowItems.find(item => item[0].toString().toUpperCase().split(' - ').pop() === sku)
+                  return [data[i][uom], data[i][fullDescription], (isInflow == null) ? 'NOT in inFlow' : '', '', ''];
+                }
+              }
+
+              someSKUsNotFound = true;
+
+              return ['SKU Not Found:', item, '', '', '']
+            });
+          }
+          else
+          {
+            Logger.log(values)
+            Logger.log(data)
+            
+            skus = values.map(item => {
+            
+              for (var i = 0; i < data.length; i++)
+              {
+                if (data[i][fullDescription].split(' - ').pop().toString().toUpperCase() == item.toString().toUpperCase())
+                {
+                  const sku = data[i][itemNumber].toString().toUpperCase()
+                  isInflow = inflowItems.find(item => item[0].toString().toUpperCase().split(' - ').pop() === sku)
+                  return [data[i][uom], data[i][fullDescription], (isInflow == null) ? 'NOT in inFlow' : '', '', ''];
+                }
+              }
+
+              someSKUsNotFound = true;
+
+              return ['SKU Not Found:', item[0], '', '', '']
+            });
+          }
+
+          if (someSKUsNotFound)
+          {
+            const skusNotFound = [];
+            var isSkuFound;
+
+            const skusFound = skus.filter(item => {
+              isSkuFound = item[0] !== 'SKU Not Found:'
+
+              if (!isSkuFound)
+                skusNotFound.push(item)
+
+              return isSkuFound;
+            })
+
+            const numSkusFound = skusFound.length;
+            const numSkusNotFound = skusNotFound.length;
+            const items = [].concat.apply([], [skusNotFound, skusFound.sort(sortByLocations)]); // Concatenate all of the item values as a 2-D array
+            const numItems = items.length;
+            const numItemsOutOfStock = items.reverse().findIndex(loc => loc[2] !== '');
+            const horizontalAlignments = new Array(numItems).fill(['center', 'left', 'center', 'center', 'center'])
+            const WHITE = new Array(5).fill('white')
+            const YELLOW = new Array(5).fill('#ffe599')
+            const colours = [].concat.apply([], [new Array(numSkusNotFound).fill(YELLOW), new Array(numSkusFound).fill(WHITE)]); // Concatenate all of the item values as a 2-D array
+
+            itemSearchFullRange.clearContent().setBackground('white').setFontColor('black').setBorder(true, true, true, true, false, false)
+              .offset(0, 0, numItems, 5)
+                .setFontFamily('Arial').setFontWeight('bold').setFontSize(10).setHorizontalAlignments(horizontalAlignments).setBackgrounds(colours)
+                .setBorder(false, null, false, null, false, false).setValues(items.reverse())
+              .offset(numSkusNotFound, 0, numSkusFound - numItemsOutOfStock, 5).activate()
+
+            searchResultsDisplayRange.setValue(numSkusFound + ' items found.')
+          }
+          else // All SKUs were succefully found
+          {
+            const numItems = skus.length
+            const horizontalAlignments = new Array(numItems).fill(['center', 'left', 'center', 'center', 'center'])
+
+            itemSearchFullRange.clearContent().setBackground('white').setFontColor('black').offset(0, 0, numItems, 5)
+              .setFontFamily('Arial').setFontWeight('bold').setFontSize(10).setHorizontalAlignments(horizontalAlignments)
+              .setBorder(false, null, false, null, false, false).setValues(skus).activate()
+
+            searchResultsDisplayRange.setValue(numItems + ' items found.')
+          }
         }
-        else if (values[0][0].toString().includes('-'))
+        else if (e.value) // Regular Search
         {
-          skus = values.map(sku => sku[0].substring(0,4) + sku[0].substring(5,9) + sku[0].substring(10)).map(item => {
-          
-            for (var i = 0; i < data.length; i++)
-            {
-              if (data[i][0].split(' - ').pop().toString().toUpperCase() == item.toString().toUpperCase())
-                return [data[i][0].split(' - ')[data[i][0].split(' - ').length - 2], ...data[i]];
-            }
+          vals[0][3] = '=COUNTIF(INVENTORY!$B$3:$B, "DOCK")&" items in Location DOCK"'
 
-            someSKUsNotFound = true;
+          rng.setBackgrounds([ ['#f1c232', 'white',   '#f1c232', '#f1c232', '#f1c232'], 
+                              ['#f1c232', '#f1c232', '#f1c232', '#f1c232', '#f1c232'], 
+                              ['#f1c232', '#f1c232', '#f1c232', '#f1c232', '#f1c232']]).setValues(vals)
 
-            return ['SKU Not Found:', item, '', '', '']
-          });
+          const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
+          const data = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 4);
+          var someSKUsNotFound = false, skus;
+
+          if (values[0][0].toString().includes(' - ')) // Strip the sku from the google description
+          {
+            skus = values.map(item => {
+            
+              for (var i = 0; i < data.length; i++)
+              {
+                if (data[i][0].split(' - ').pop().toString().toUpperCase() == item[0].toString().split(' - ').pop().toString().toUpperCase())
+                  return [data[i][0].split(' - ')[data[i][0].split(' - ').length - 2], ...data[i]];
+              }
+
+              someSKUsNotFound = true;
+
+              return ['SKU Not Found:', item[0].toString().split(' - ').pop().toUpperCase(), '', '', '']
+            });
+          }
+          else if (values[0][0].toString().includes('-'))
+          {
+            skus = values.map(sku => sku[0].substring(0,4) + sku[0].substring(5,9) + sku[0].substring(10)).map(item => {
+            
+              for (var i = 0; i < data.length; i++)
+              {
+                if (data[i][0].split(' - ').pop().toString().toUpperCase() == item.toString().toUpperCase())
+                  return [data[i][0].split(' - ')[data[i][0].split(' - ').length - 2], ...data[i]];
+              }
+
+              someSKUsNotFound = true;
+
+              return ['SKU Not Found:', item, '', '', '']
+            });
+          }
+          else
+          {
+            skus = values.map(item => {
+            
+              for (var i = 0; i < data.length; i++)
+              {
+                if (data[i][0].split(' - ').pop().toString().toUpperCase() == item.toString().toUpperCase())
+                  return [data[i][0].split(' - ')[data[i][0].split(' - ').length - 2], ...data[i]];
+              }
+
+              someSKUsNotFound = true;
+
+              return ['SKU Not Found:', item[0], '', '', '']
+            });
+          }
+
+          if (someSKUsNotFound)
+          {
+            const skusNotFound = [];
+            var isSkuFound;
+
+            const skusFound = skus.filter(item => {
+              isSkuFound = item[0] !== 'SKU Not Found:'
+
+              if (!isSkuFound)
+                skusNotFound.push(item)
+
+              return isSkuFound;
+            })
+
+            const numSkusFound = skusFound.length;
+            const numSkusNotFound = skusNotFound.length;
+            const items = [].concat.apply([], [skusNotFound, skusFound.sort(sortByLocations)]); // Concatenate all of the item values as a 2-D array
+            const numItems = items.length;
+            const numItemsOutOfStock = items.reverse().findIndex(loc => loc[2] !== '');
+            const horizontalAlignments = new Array(numItems).fill(['center', 'left', 'center', 'center', 'center'])
+            const WHITE = new Array(5).fill('white')
+            const YELLOW = new Array(5).fill('#ffe599')
+            const colours = [].concat.apply([], [new Array(numSkusNotFound).fill(YELLOW), new Array(numSkusFound).fill(WHITE)]); // Concatenate all of the item values as a 2-D array
+
+            itemSearchFullRange.clearContent().setBackground('white').setFontColor('black').setBorder(true, true, true, true, false, false)
+              .offset(0, 0, numItems, 5)
+                .setFontFamily('Arial').setFontWeight('bold').setFontSize(10).setHorizontalAlignments(horizontalAlignments).setBackgrounds(colours)
+                .setBorder(false, null, false, null, false, false).setValues(items.reverse())
+              .offset(numSkusNotFound, 0, numSkusFound - numItemsOutOfStock, 5).activate()
+
+            searchResultsDisplayRange.setValue(numSkusFound + ' items found.')
+          }
+          else // All SKUs were succefully found
+          {
+            const numItems = skus.length
+            const horizontalAlignments = new Array(numItems).fill(['center', 'left', 'center', 'center', 'center'])
+
+            itemSearchFullRange.clearContent().setBackground('white').setFontColor('black').offset(0, 0, numItems, 5)
+              .setFontFamily('Arial').setFontWeight('bold').setFontSize(10).setHorizontalAlignments(horizontalAlignments)
+              .setBorder(false, null, false, null, false, false).setValues(skus).activate()
+
+            searchResultsDisplayRange.setValue(numItems + ' items found.')
+          }
         }
-        else
-        {
-          skus = values.map(item => {
-          
-            for (var i = 0; i < data.length; i++)
-            {
-              if (data[i][0].split(' - ').pop().toString().toUpperCase() == item[0].toString().toUpperCase())
-                return [data[i][0].split(' - ')[data[i][0].split(' - ').length - 2], ...data[i]];
-            }
 
-            someSKUsNotFound = true;
-
-            return ['SKU Not Found:', item[0], '', '', '']
-          });
-        }
-
-        if (someSKUsNotFound)
-        {
-          const skusNotFound = [];
-          var isSkuFound;
-
-          const skusFound = skus.filter(item => {
-            isSkuFound = item[0] !== 'SKU Not Found:'
-
-            if (!isSkuFound)
-              skusNotFound.push(item)
-
-            return isSkuFound;
-          })
-
-          const numSkusFound = skusFound.length;
-          const numSkusNotFound = skusNotFound.length;
-          const items = [].concat.apply([], [skusNotFound, skusFound.sort(sortByLocations)]); // Concatenate all of the item values as a 2-D array
-          const numItems = items.length;
-          const numItemsOutOfStock = items.reverse().findIndex(loc => loc[2] !== '');
-          const horizontalAlignments = new Array(numItems).fill(['center', 'left', 'center', 'center', 'center'])
-          const WHITE = new Array(5).fill('white')
-          const YELLOW = new Array(5).fill('#ffe599')
-          const colours = [].concat.apply([], [new Array(numSkusNotFound).fill(YELLOW), new Array(numSkusFound).fill(WHITE)]); // Concatenate all of the item values as a 2-D array
-
-          sheet.getRange(4, 1, sheet.getMaxRows() - 2, 5).clearContent().setBackground('white').setFontColor('black').setBorder(true, true, true, true, false, false)
-            .offset(0, 0, numItems, 5)
-              .setFontFamily('Arial').setFontWeight('bold').setFontSize(10).setHorizontalAlignments(horizontalAlignments).setBackgrounds(colours)
-              .setBorder(false, null, false, null, false, false).setValues(items.reverse())
-            .offset(numSkusNotFound, 0, numSkusFound - numItemsOutOfStock, 5).activate()
-        }
-        else // All SKUs were succefully found
-        {
-          const numItems = skus.length
-          const horizontalAlignments = new Array(numItems).fill(['center', 'left', 'center', 'center', 'center'])
-
-          sheet.getRange(4, 1, sheet.getMaxRows() - 2, 5).clearContent().setBackground('white').setFontColor('black').offset(0, 0, numItems, 5)
-            .setFontFamily('Arial').setFontWeight('bold').setFontSize(10).setHorizontalAlignments(horizontalAlignments)
-            .setBorder(false, null, false, null, false, false).setValues(skus).activate()
-        }
+        spreadsheet.toast('Searching Complete.')
+        functionRunTimeRange.setValue((new Date().getTime() - startTime)/1000 + " s");
       }
     }
   }
