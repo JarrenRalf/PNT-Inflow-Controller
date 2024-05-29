@@ -2918,9 +2918,6 @@ function search(e, spreadsheet, sheet)
           }
           else
           {
-            Logger.log(values)
-            Logger.log(data)
-            
             skus = values.map(item => {
             
               for (var i = 0; i < data.length; i++)
@@ -2983,7 +2980,7 @@ function search(e, spreadsheet, sheet)
             searchResultsDisplayRange.setValue(numItems + ' items found.')
           }
         }
-        else if (e.value) // Regular Search
+        else // Regular Search
         {
           vals[0][3] = '=COUNTIF(INVENTORY!$B$3:$B, "DOCK")&" items in Location DOCK"'
 
