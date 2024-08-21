@@ -944,7 +944,7 @@ function isUPC_A(upcNumber)
   for (var i = 0, sum = 0, upc = upcNumber.toString(); i < upc.length - 1; i++)
     sum += (i % 2 === 0) ? Number(upc[i])*3 : Number(upc[i])
 
-  return upc.endsWith(Math.ceil(sum/10)*10 - sum)
+  return upc.endsWith(Math.ceil(sum/10)*10 - sum) && upc.length === 12;
 }
 
 /**
@@ -959,7 +959,7 @@ function isEAN_13(upcNumber)
   for (var i = 0, sum = 0, upc = upcNumber.toString(); i < upc.length - 1; i++)
     sum += (i % 2 === 0) ? Number(upc[i]) : Number(upc[i])*3
 
-  return upc.endsWith(Math.ceil(sum/10)*10 - sum)
+  return upc.endsWith(Math.ceil(sum/10)*10 - sum) && upc.length === 13
 }
 
 /**
@@ -1721,8 +1721,8 @@ function search(e, spreadsheet, sheet)
           vals[0][3] = '=COUNTIF(INVENTORY!$B$3:$B, "DOCK")&" items in Location DOCK"'
 
           rng.setBackgrounds([ ['#f1c232', 'white',   '#f1c232', '#f1c232', '#f1c232'], 
-                              ['#f1c232', '#f1c232', '#f1c232', '#f1c232', '#f1c232'], 
-                              ['#f1c232', '#f1c232', '#f1c232', '#f1c232', '#f1c232']]).setValues(vals)
+                               ['#f1c232', '#f1c232', '#f1c232', '#f1c232', '#f1c232'], 
+                               ['#f1c232', '#f1c232', '#f1c232', '#f1c232', '#f1c232']]).setValues(vals)
 
           const searchesOrNot = sheet.getRange(1, 2, 1, 2).clearFormat()                                    // Clear the formatting of the range of the search box
             .setBorder(true, true, true, true, null, null, 'white', SpreadsheetApp.BorderStyle.SOLID_THICK) // Set the border
@@ -2555,7 +2555,7 @@ function search(e, spreadsheet, sheet)
 
                       for (var k = 0; k <= numSearchWords; k++) // Loop through each word in each set of searches
                       {
-                        if (data[i][0].toString().toLowerCase().includes(searches[j][k])) // Does the i-th item description contain the k-th search word in the j-th search
+                        if (data[i][0].toString().toLowerCase().includes(searches[j][k].toString())) // Does the i-th item description contain the k-th search word in the j-th search
                         {
                           if (k === numSearchWords) // The last search word was succesfully found in the ith item, and thus, this item is returned in the search
                           {
@@ -3284,7 +3284,7 @@ function updateStockLevels()
 }
 
 /**
- * This function looks at the UPC database and removes all of the barcodes that are not UPC-A. It also updates the data with the typical Google sheets description string.
+ * This function looks at the UPC database and removes all of the barcodes that are not UPC-A or EAN-13. It also updates the data with the typical Google sheets description string.
  * 
  * @author Jarren Ralf
  */
@@ -3300,7 +3300,7 @@ function updateUPCs()
     return (item != null) ? [upcs[0], item[fullDescription]] : null;
   }).filter(val => val != null).sort(sortUPCsNumerically)
 
-  SpreadsheetApp.getActive().getSheetByName('UPC Database').clearContents().getRange(1, 1, data.length, data[0].length).setNumberFormat('@').setValues(data)
+  SpreadsheetApp.getActive().getSheetByName('UPC Database').clearContents().getRange(1, 1, data.length, data[0].length).setNumberFormat('@').setValues(data);
 }
 
 /**
