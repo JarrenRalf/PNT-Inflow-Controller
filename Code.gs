@@ -3253,11 +3253,13 @@ function updateInFlowList_(values, spreadsheet, sheetName, startingIndex)
 function updateInFlowCustomerList(values, spreadsheet)
 {
   updateInFlowList_(values, spreadsheet, 'Customers', 2)
+  spreadsheet.toast('Customer list import.', 'COMPLETE', -1)
 }
 
 function updateInflowProductDetails(values, spreadsheet)
 {
   updateInFlowList_(values, spreadsheet, 'Product Details')
+  spreadsheet.toast('Product Details import.', 'COMPLETE', -1)
 }
 
 /**
@@ -3269,7 +3271,9 @@ function updateInflowProductDetails(values, spreadsheet)
  */
 function updateInFlowVendorList(values, spreadsheet)
 {
+  spreadsheet.toast('Vendor list import.', 'Updating...', -1)
   updateInFlowList_(values, spreadsheet, 'Vendors', 1)
+  spreadsheet.toast('Vendor list import.', 'COMPLETE', -1)
 }
 
 /**
@@ -3279,9 +3283,11 @@ function updateInFlowVendorList(values, spreadsheet)
  */
 function updateStockLevels()
 {
+  spreadsheet.toast('Stock Levels import.', 'Updating...', -1)
   const startTime = new Date().getTime();
   const inflowData = Utilities.parseCsv(DriveApp.getFilesByName("inFlow_StockLevels.csv").next().getBlob().getDataAsString())
   importStockLevels(inflowData, SpreadsheetApp.getActive(), startTime)
+  spreadsheet.toast('Stock Levels import.', 'COMPLETE', -1)
 }
 
 /**
@@ -3291,6 +3297,7 @@ function updateStockLevels()
  */
 function updateUPCs()
 {
+  spreadsheet.toast('UPC import.', 'Updating...', -1)
   var sku_upc, item;
   const adagioInventory = Utilities.parseCsv(DriveApp.getFilesByName("inventory.csv").next().getBlob().getDataAsString())
   const itemNum = adagioInventory[0].indexOf('Item #')
@@ -3302,6 +3309,7 @@ function updateUPCs()
   }).filter(val => val != null).sort(sortUPCsNumerically)
 
   SpreadsheetApp.getActive().getSheetByName('UPC Database').clearContents().getRange(1, 1, data.length, data[0].length).setNumberFormat('@').setValues(data);
+  spreadsheet.toast('UPC import.', 'COMPLETE', -1)
 }
 
 /**
