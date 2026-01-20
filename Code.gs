@@ -1220,7 +1220,7 @@ function manualScan(e, spreadsheet, sheet)
                 const splitDescription = description.split(' - ');
                 const sku = splitDescription.pop().toString().toUpperCase();
                 const inventorySheet = spreadsheet.getSheetByName('INVENTORY');
-                const item = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).find(description => description[0].includes(sku));
+                const item = inventorySheet.getSheetValues(3, 1, inventorySheet.getLastRow() - 2, 1).find(description => description[0].toString().includes(sku));
 
                 if (item !== undefined) // Item is in inFlow
                   barcodeInputRange.setValue(item[0] + '\nwill be added to the Counts page at line :\n' + 3);
@@ -3283,6 +3283,7 @@ function updateInFlowVendorList(values, spreadsheet)
  */
 function updateStockLevels()
 {
+  const spreadsheet = SpreadsheetApp.getActive()
   spreadsheet.toast('Stock Levels import.', 'Updating...', -1)
   const startTime = new Date().getTime();
   const inflowData = Utilities.parseCsv(DriveApp.getFilesByName("inFlow_StockLevels.csv").next().getBlob().getDataAsString())
